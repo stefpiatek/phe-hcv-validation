@@ -33,16 +33,33 @@ def merge_FASTAs(sequences):
 
 def make_consensus(sequence_dict):
     """Create consesus sequence from sequence_dict
+
+    If maximum base is a gap ('-' or N) and other bases are present, 
+    use the bases in preference to the gap. 
     
     :param sequence_dict - frequency of each base per sequence postion:
     :return consensus - single string of consensus sequence:
     """
 
-    consensus = ''.join([max(sequence_dict[base], key=sequence_dict[base].get)
-                         for base in sequence_dict])
+    consensus_list = []
 
-    return consensus
+    for position in sequence_dict:
+        max_base = max(sequence_dict[position], key=sequence_dict[position].get)
+        if max_base not in ['-', 'N']:
+            consensus_list.append(max_base)
+        else:
+            # Use second most common base if it exists, otherwise use maximum
+            try:
+                base = sorted(sequence_dict[position],
+                              key=sequence_dict[position].get)[-2]
+            except IndexError:
+                base = max(sequence_dict[position], 
+                           key=sequence_dict[position].get)
+            finally:
+                consensus_list.append(base)
 
+    return ''.join(consensus_list)
+   
 
 if __name__ == '__main__':
     # set up argument parser

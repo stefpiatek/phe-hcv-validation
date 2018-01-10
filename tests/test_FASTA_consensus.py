@@ -10,8 +10,8 @@ class TestMergeFASTAs:
                      ]
         output = {
             0: {'A': 3},
-            1: {'C': 2, 'A':1},
-            2: {'T': 2, 'A':1},
+            1: {'C': 2, 'A': 1},
+            2: {'T': 2, 'A': 1},
             3: {'G': 3},
             }
 
@@ -24,8 +24,8 @@ class TestMergeFASTAs:
                      ]
         output = {
             0: {'A': 3},
-            1: {'C': 1, 'A':2},
-            2: {'T': 1, 'A':2},
+            1: {'C': 1, 'A': 2},
+            2: {'T': 1, 'A': 2},
             3: {'G': 3},
             }
 
@@ -38,8 +38,8 @@ class TestMergeFASTAs:
                      ]
         output = {
             0: {'A': 3},
-            1: {'C': 1, 'A':2},
-            2: {'T': 1, 'A':2},
+            1: {'C': 1, 'A': 2},
+            2: {'T': 1, 'A': 2},
             3: {'G': 2},
             4: {'A': 1},
             }
@@ -51,8 +51,8 @@ class TestMakeConsensus:
     def test_simple_case(self):
         input_dict = {
             0: {'A': 3},
-            1: {'C': 2, 'A':1},
-            2: {'T': 2, 'A':1},
+            1: {'C': 2, 'A': 1},
+            2: {'T': 2, 'A': 1},
             3: {'G': 3},
             }
         output = "ACTG"
@@ -63,8 +63,8 @@ class TestMakeConsensus:
 
         input_dict = {
             0: {'A': 3},
-            1: {'C': 1, 'A':2},
-            2: {'T': 1, 'A':2},
+            1: {'C': 1, 'A': 2},
+            2: {'T': 1, 'A': 2},
             3: {'G': 3},
             }
         output = "AAAG"
@@ -74,11 +74,35 @@ class TestMakeConsensus:
     def test_unequal_input(self):
         input_dict = {
             0: {'A': 3},
-            1: {'C': 1, 'A':2},
-            2: {'T': 1, 'A':2},
+            1: {'C': 1, 'A': 2},
+            2: {'T': 1, 'A': 2},
             3: {'G': 2},
             4: {'A': 1},
             }
         output = "AAAGA"
+
+        assert FASTA_consensus.make_consensus(input_dict) == output
+
+    def test_gap_not_returned(self):
+        input_dict = {
+            0: {'A': 3},
+            1: {'C': 1, '-': 2},
+            2: {'T': 1, 'A': 2},
+            3: {'G': 2},
+            4: {'A': 1},
+            }
+        output = "ACAGA"
+
+        assert FASTA_consensus.make_consensus(input_dict) == output
+
+    def test_gap_returned(self):
+        input_dict = {
+            0: {'A': 3},
+            1: {'-': 3},
+            2: {'T': 1, 'A':2},
+            3: {'G': 2},
+            4: {'A': 1},
+            }
+        output = "A-AGA"
 
         assert FASTA_consensus.make_consensus(input_dict) == output
