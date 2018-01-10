@@ -100,7 +100,7 @@ class TestMakeConsensus:
         input_dict = {
             0: {'A': 3},
             1: {'-': 3},
-            2: {'T': 1, 'A':2},
+            2: {'T': 1, 'A': 2},
             3: {'G': 2},
             4: {'A': 1},
             }
@@ -110,6 +110,7 @@ class TestMakeConsensus:
 
 
 frequency = namedtuple('base', 'position A C G T gap depth')
+
 
 class TestGetBaseFrequency:
     def test_basic(self):
@@ -137,6 +138,7 @@ class TestGetBaseFrequency:
                            depth=27)
 
         assert FASTA_consensus.get_base_frequency(input_dict, 1) == output
+
 
 class TestMakeFrequencyMatrix:
     def test_two_positions(self):

@@ -11,9 +11,10 @@ from collections import defaultdict, namedtuple
 Tested with python 3.5.2, using pytest for unit testing
 """
 
+
 def merge_FASTAs(sequences):
     """Make dictionary of base counts per nt position
-    
+
     :param sequences - open file or list of FASTA sequences:
     :return sequence_dict - dictionary with keys of each position,
                             the values are a dictionary of each base and their
@@ -37,9 +38,9 @@ def merge_FASTAs(sequences):
 def make_consensus(sequence_dict):
     """Create consesus sequence from sequence_dict
 
-    If maximum base is a gap ('-' or N) and other bases are present, 
-    use the bases in preference to the gap. 
-    
+    If maximum base is a gap ('-' or N) and other bases are present,
+    use the bases in preference to the gap.
+
     :param sequence_dict - frequency of each base per sequence postion:
     :return consensus - single string of consensus sequence:
     """
@@ -47,7 +48,8 @@ def make_consensus(sequence_dict):
     consensus_list = []
 
     for position in sequence_dict:
-        max_base = max(sequence_dict[position], key=sequence_dict[position].get)
+        max_base = max(sequence_dict[position],
+                       key=sequence_dict[position].get)
         if max_base not in ['-', 'N']:
             consensus_list.append(max_base)
         else:
@@ -56,7 +58,7 @@ def make_consensus(sequence_dict):
                 base = sorted(sequence_dict[position],
                               key=sequence_dict[position].get)[-2]
             except IndexError:
-                base = max(sequence_dict[position], 
+                base = max(sequence_dict[position],
                            key=sequence_dict[position].get)
             finally:
                 consensus_list.append(base)
@@ -65,6 +67,7 @@ def make_consensus(sequence_dict):
 
 frequency = namedtuple('base', 'position A C G T gap depth')
 default_frequency = frequency(None, 0, 0, 0, 0, 0, 0)
+
 
 def get_base_frequency(position_dict, position):
     depth = sum(position_dict.values())
@@ -101,7 +104,7 @@ def make_frequency_matrix(sequence_dict):
 if __name__ == '__main__':
     # set up argument parser
     parser = ArgumentParser(
-        description='Convert multiple FASTAs in one file to a consensus FASTA\n'
+        description='Convert FASTAs in one file to a consensus FASTA\n'
                     'Output file made in the same directory as the input')
     parser.add_argument('input_file')
     args = parser.parse_args()
@@ -123,6 +126,7 @@ if __name__ == '__main__':
     with open(consensus_out_file, "w") as output:
         output.write(">consensus\n")
         output.write(consensus)
+        output.write("\n")
     # write frequency matrix
     with open(matrix_out_file, "w") as output:
         # write header
@@ -130,7 +134,6 @@ if __name__ == '__main__':
         output.write('\n')
         # write data
         for base_frequency in frequency_matrix:
-            output.write('\t'.join([str(field) 
+            output.write('\t'.join([str(field)
                                     for field in base_frequency]))
             output.write('\n')
-
