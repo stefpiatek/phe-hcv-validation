@@ -85,7 +85,6 @@ def get_base_frequency(position_dict, position):
         position_dict[base] = round(100 * base_count / depth, 2)
 
     position_dict['position'] = position
-    
     position_dict['depth'] = depth
 
     # replace default frequency with position_dict values
