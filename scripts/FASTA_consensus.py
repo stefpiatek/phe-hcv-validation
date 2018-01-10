@@ -1,6 +1,5 @@
 from argparse import ArgumentParser
-from collections import defaultdict
-from sys import version
+from collections import defaultdict, namedtuple
 
 """Simple script to generate consensus sequence from multiple FASTAs
 
@@ -8,6 +7,8 @@ from sys import version
   sequence
 - merges all FASTAs into a dictionary of base frequency per position,
   then takes most common base per position
+
+Tested with python 3.5.2, using pytest for unit testing
 """
 
 def merge_FASTAs(sequences):
@@ -23,6 +24,8 @@ def merge_FASTAs(sequences):
         # skip fasta header
         if line.startswith(">"):
             continue
+        # remove trailing whitespace
+        line = line.rstrip()
         for position, base in enumerate(line):
             if base not in sequence_dict[position].keys():
                 sequence_dict[position][base] = 1
@@ -59,7 +62,41 @@ def make_consensus(sequence_dict):
                 consensus_list.append(base)
 
     return ''.join(consensus_list)
-   
+
+frequency = namedtuple('base', 'position A C G T gap depth')
+default_frequency = frequency(None, 0, 0, 0, 0, 0, 0)
+
+def get_base_frequency(position_dict, position):
+    depth = sum(position_dict.values())
+    # combine gaps to single format
+    gap = 0
+    for gap_notation in ['-', 'N']:
+        try:
+            gap += position_dict.pop(gap_notation)
+        except KeyError:
+            continue
+    position_dict['gap'] = gap
+
+    # change coutns to frequency by 2 decimal places
+    for base, base_count in position_dict.items():
+        position_dict[base] = round(100 * base_count / depth, 2)
+
+    position_dict['position'] = position
+    
+    position_dict['depth'] = depth
+
+    # replace default frequency with position_dict values
+    base_frequency = default_frequency._replace(**position_dict)
+
+    return base_frequency
+
+
+def make_frequency_matrix(sequence_dict):
+    frequency_matrix = []
+    for position, position_dict in sequence_dict.items():
+        frequency_matrix.append(get_base_frequency(position_dict, position))
+
+    return frequency_matrix
 
 if __name__ == '__main__':
     # set up argument parser
@@ -70,7 +107,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     in_file = args.input_file
-    out_file = "{prefix}_consensus.fas".format(
+    consensus_out_file = "{prefix}_consensus.fas".format(
+        prefix=in_file.replace('.fas', ''))
+    matrix_out_file = "{prefix}_frequency_matrix.txt".format(
         prefix=in_file.replace('.fas', ''))
 
     assert in_file.endswith(".fas"), "Input file must end with '.fas'"
@@ -79,7 +118,19 @@ if __name__ == '__main__':
     with open(in_file, "r") as sequences:
         sequence_dict = merge_FASTAs(sequences)
         consensus = make_consensus(sequence_dict)
+        frequency_matrix = make_frequency_matrix(sequence_dict)
     # write consensus FASTA
-    with open(out_file, "w") as output:
+    with open(consensus_out_file, "w") as output:
         output.write(">consensus\n")
         output.write(consensus)
+    # write frequency matrix
+    with open(matrix_out_file, "w") as output:
+        # write header
+        output.write('\t'.join(frequency._fields))
+        output.write('\n')
+        # write data
+        for base_frequency in frequency_matrix:
+            output.write('\t'.join([str(field) 
+                                    for field in base_frequency]))
+            output.write('\n')
+

@@ -1,5 +1,6 @@
-from scripts import FASTA_consensus
+from collections import namedtuple
 
+from scripts import FASTA_consensus
 
 
 class TestMergeFASTAs:
@@ -106,3 +107,59 @@ class TestMakeConsensus:
         output = "A-AGA"
 
         assert FASTA_consensus.make_consensus(input_dict) == output
+
+
+frequency = namedtuple('base', 'position A C G T gap depth')
+
+class TestGetBaseFrequency:
+    def test_basic(self):
+        input_dict = {'C': 2, 'A': 1}
+
+        output = frequency(position=0,
+                           A=33.33,
+                           C=66.67,
+                           G=0,
+                           T=0,
+                           gap=0,
+                           depth=3)
+
+        assert FASTA_consensus.get_base_frequency(input_dict, 0) == output
+
+    def test_gap_merge(self):
+        input_dict = {'A': 2, 'C': 3, 'G': 4, 'T': 5, '-': 6, 'N': 7}
+
+        output = frequency(position=1,
+                           A=7.41,
+                           C=11.11,
+                           G=14.81,
+                           T=18.52,
+                           gap=48.15,
+                           depth=27)
+
+        assert FASTA_consensus.get_base_frequency(input_dict, 1) == output
+
+class TestMakeFrequencyMatrix:
+    def test_two_positions(self):
+        input_dict = {
+            0: {'C': 2, 'A': 1},
+            1: {'A': 2, 'C': 3, 'G': 4, 'T': 5, '-': 6, 'N': 7},
+        }
+
+        freq1 = frequency(position=0,
+                          A=33.33,
+                          C=66.67,
+                          G=0,
+                          T=0,
+                          gap=0,
+                          depth=3)
+        freq2 = frequency(position=1,
+                          A=7.41,
+                          C=11.11,
+                          G=14.81,
+                          T=18.52,
+                          gap=48.15,
+                          depth=27)
+
+        output = [freq1, freq2]
+
+        assert FASTA_consensus.make_frequency_matrix(input_dict) == output
