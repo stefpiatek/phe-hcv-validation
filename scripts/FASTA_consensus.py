@@ -28,6 +28,8 @@ def merge_FASTAs(sequences):
         # remove trailing whitespace
         line = line.rstrip()
         for position, base in enumerate(line):
+            # use position + 1 for 1 indexed positions
+            position += 1
             if base not in sequence_dict[position].keys():
                 sequence_dict[position][base] = 1
             else:
@@ -65,7 +67,7 @@ def make_consensus(sequence_dict):
 
     return ''.join(consensus_list)
 
-frequency = namedtuple('base', 'position A C G T gap depth')
+frequency = namedtuple('base', 'Pos A C G T Gap Depth')
 default_frequency = frequency(None, 0, 0, 0, 0, 0, 0)
 
 
@@ -78,14 +80,14 @@ def get_base_frequency(position_dict, position):
             gap += position_dict.pop(gap_notation)
         except KeyError:
             continue
-    position_dict['gap'] = gap
+    position_dict['Gap'] = gap
 
     # change coutns to frequency by 2 decimal places
     for base, base_count in position_dict.items():
         position_dict[base] = round(100 * base_count / depth, 2)
 
-    position_dict['position'] = position
-    position_dict['depth'] = depth
+    position_dict['Pos'] = position
+    position_dict['Depth'] = depth
 
     # replace default frequency with position_dict values
     base_frequency = default_frequency._replace(**position_dict)
