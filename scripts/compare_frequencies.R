@@ -29,7 +29,10 @@ palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 sample_root <- "170908_1_"
 
 
-### Compare consensus frequency matrix and quasibam output ----
+
+
+
+### Load data ----
 
 consensus_fm <- read_delim(file = here("data", glue("{sample_root}quasi_frequency_matrix.txt")),
                            delim = "\t")
@@ -37,7 +40,25 @@ consensus_qb <- read_delim(file = here("data", glue("{sample_root}quasi.txt")),
                            delim = "\t") %>%
   select(-X22)  # extra column added in import
 
-consensus_diff_temp <- consensus_fm %>%
+### Compare data where basecalls are discordant ----
+
+discordant_basecalls <- consensus_qb %>%
+  filter(RefN != Cons) %>%
+  filter(!(Cons %in% c("R", "Y"))) 
+
+ggplot(discordant_basecalls, aes(x=Pos, fill=Cons)) +
+  geom_histogram(bins=50) +
+  scale_x_continuous(limits=c(1, nrow(consensus_fm))) +
+  labs(x = "Nucleotide position",
+       y = "Count",
+       title = "Discordant basecalls by position",
+       fill = "Base called")
+ggsave(glue(here("plots", "hist_discordant-calls_by-position.pdf"), device="pdf"))
+# No T base miscalled, mostly just gaps and Ns
+
+### Explore difference in base frequency ----
+
+tmp_consensus_diff <- consensus_fm %>%
   full_join(consensus_qb, by="Pos", suffix=c("_consensus", "_quasibam")) %>%
   # keep only rows with 200 read depth -- is this too low?
   filter(Depth_quasibam >= 200) %>%
@@ -51,24 +72,36 @@ consensus_diff_temp <- consensus_fm %>%
   group_by(Pos, base) %>%
   arrange(sample) %>%
   mutate(pc_diff = max(value) - min(value)) %>%
+  # plot using log, so no negative. use factor to determine which value is greater
   mutate(consensus_greater = if_else(value < lag(value),
                                      "consensus value greater",
                                      "consensus value smaller",
                                      missing="quasibam_sample")) %>%
+  mutate(consensus_greater = parse_factor(consensus_greater, 
+                                          levels = c("consensus value greater",
+                                                     "consensus value smaller",
+                                                     "quasibam_sample"))) %>%
   ungroup()
 
 # reshape quality data into long format and merge back into consensus_diff
-quality_values <- consensus_diff_temp %>%
+quality_values <- tmp_consensus_diff %>%
   select(Pos, starts_with("q")) %>%
   gather(key = base, value = quality_value, starts_with("q")) %>%
   mutate(base = str_replace(base, "q", "")) %>%
   group_by(Pos, base) %>%
-  slice(1)
+  slice(1) %>%
+  ungroup()
 
-consensus_diff <- consensus_diff_temp %>%
+consensus_diff <- tmp_consensus_diff %>%
   select(-starts_with("q")) %>%
   full_join(quality_values) %>%
-  mutate(base = parse_factor(base, levels=c("A", "C", "G", "T", "Gap")))
+  mutate(base = parse_factor(base, levels=c("A", "C", "G", "T", "Gap"))) %>%
+  # for non-called bases, change base quality to NA
+  mutate(quality_value = replace(quality_value,
+                                 quality_value == 0 & value == 0,
+                                 NA))
+
+summary(consensus_diff)
 
 
 ### plot per base differences ----
@@ -85,6 +118,9 @@ consensus_diff %>%
   labs(x = "Frequency difference",
        y = "Count",
        title = "Differences compared to consensus")
+ggsave(glue(here("plots", "hist_frequency-difference.pdf"), device="pdf"))
+# More gap reads in consensus, and less true base calls
+
 
 consensus_diff %>%
   # remove samples with frequencies within 0.1% of eachother 
@@ -98,6 +134,9 @@ consensus_diff %>%
        y = "Count",
        title = "Differences by position")+
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+ggsave(glue(here("plots", "hist_position_frequency-difference.pdf"), device="pdf"))
+# Similar positions as discodant bases, where gaps exist in consensus sequence
+# As before, more gaps and fewer bases in conensus sequence
 
 
 consensus_diff %>%
@@ -108,11 +147,13 @@ consensus_diff %>%
   scale_y_log10() + 
   scale_x_continuous(limits=c(1, nrow(consensus_fm))) + 
   facet_grid(consensus_greater ~ base) +
-  scale_color_continuous(low = palette_5[1] , high = palette_5[3]) +
+  scale_color_continuous(low = palette_5[1] , high = palette_5[2]) +
   labs(x = "Nucleotide position",
        y = "Frequency difference",
        title = "Percentage difference per base, over 1% with read depth") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+ggsave(glue(here("plots", "dot_frequency-difference_with-depth.pdf"), device="pdf"))
+# Read depth of less than 1,500 seems to affect bases at ~ 1,000 nt, otherwise read depth at 2,000
 
 
 consensus_diff %>%
@@ -123,12 +164,10 @@ consensus_diff %>%
   scale_y_log10() + 
   scale_x_continuous(limits=c(1, nrow(consensus_fm))) + 
   facet_grid(consensus_greater ~ base) +
-  scale_color_continuous(low = palette_5[1] , high = palette_5[2]) +
+  scale_color_continuous(low = palette_5[1] , high = palette_5[3]) +
   labs(x = "Nucleotide position",
        y = "Frequency difference",
        title = "Percentage difference per base, over 1% with mapping quality") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-
-
-# Add consensus sequence to frequency matrix?
-# 
+ggsave(glue(here("plots", "dot_frequency-difference_with-quality.pdf"), device="pdf"))
+# small proportion of consensus bases have no read depth (i.e. quality of NA) 
