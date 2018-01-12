@@ -1,0 +1,202 @@
+---
+title: "IVA-BWA compared with consensus"
+author: "Stef Piatek"
+date: "12 January 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(here)
+library(glue)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+
+# set up ggplot theme and palettes 
+theme_custom <- function (base_size = 12, base_family = "") {
+  theme_bw(base_size = base_size, base_family = base_family) %+replace%
+    theme(
+      axis.line.x = element_line(color = "black"),
+      axis.line.y = element_line(color = "black"),
+      panel.border = element_blank(),
+      legend.key = element_rect(fill = NA, colour = NA),
+      panel.grid.minor.y = element_line(colour="white"),
+      panel.grid.major = element_line(colour = "white"),
+      axis.title.x=element_text(vjust=-1.5),
+      plot.margin= unit(c(0.5, 0, 0.5, 0), "cm")# top right bottom left
+    )
+}
+theme_set(theme_custom(base_size=12))
+
+palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
+
+
+```
+
+## Comparison of quasibam to pipeline
+
+- The consensus quasibam had been made from a set of FASTAs
+
+    - FASTQs have been generated from these FASTAs
+    - Mapped back to the consensus FASTA sequence 
+    - quasi_bam ran on the resulting bam file
+  
+- This document compares the consensus quasibam output to the pipeline (VICUNA-BWA)
+
+load data:
+
+```{r load_data, warning=FALSE, message=FALSE}
+sample_root <- "170908_1_"
+pipeline <- "iva_bwa"
+
+### Load data ----
+
+consensus_qb <- read_delim(file = here("data", glue("{sample_root}quasi.txt")),
+                           delim = "\t") %>%
+  select(-X22)  # extra column added in import
+denovo_qb <- read_delim(file = here("data", glue("{sample_root}{pipeline}_quasibam.txt")),
+                           delim = "\t") %>%
+  select(-X22)  # extra column added in import
+
+```
+
+## Discordant basecalls
+
+- No discordant base calls
+
+```{r discordant_basecalls, echo=FALSE}
+### Compare data where basecalls are discordant ----
+
+discordant_basecalls <- consensus_qb %>%
+  filter(RefN != Cons) %>%
+  filter(!(Cons == "R" & RefN %in% c("A", "G"))) %>%
+  filter(!(Cons == "Y" & RefN %in% c("C", "T"))) %>%
+  filter(!(Cons == "S" & RefN %in% c("G", "C"))) %>%
+  filter(!(Cons == "W" & RefN %in% c("A", "T"))) %>%
+  filter(!(Cons == "K" & RefN %in% c("G", "T"))) %>%
+  filter(!(Cons == "M" & RefN %in% c("A", "C"))) 
+
+discordant_basecalls
+```
+
+## Basecall frequency differences
+
+### Parse data for plotting
+
+
+```{r base_frequency_data}
+tmp_consensus_diff <- consensus_qb %>%
+  full_join(denovo_qb, by="Pos", suffix=c("_consensus", "_pipeline")) %>%
+  # keep only rows with 200 read depth -- is this too low?
+  filter(Depth_consensus >= 200 & Depth_pipeline >= 200) %>%
+  # tidy data to have base, sample and value columns
+  gather(key = base_sample, value = value, 
+         starts_with("A_"), starts_with("C_"), starts_with("T_"), 
+         starts_with("G_"), starts_with("Gap_") ) %>%
+  separate(col = base_sample, into = c("base", "sample"), sep = "_" ) %>%
+  # get difference in percent
+  group_by(Pos, base) %>%
+  arrange(sample) %>%
+  mutate(pc_diff = max(value) - min(value)) %>%
+  # plot using log, so no negative. use factor to determine which value is greater
+  mutate(consensus_greater = if_else(value > lead(value),
+                                     "consensus value greater",
+                                     "consensus value smaller",
+                                     missing="pipeline_sample")) %>%
+  ungroup()
+
+# reshape quality data into long format and merge back into consensus_diff
+quality_values <- tmp_consensus_diff %>%
+  select(Pos, starts_with("q")) %>%
+  gather(key = base_sample, value = quality_value, contains("_")) %>%
+  separate(col = base_sample, into = c("base", "sample"), sep = "_" ) %>%
+  mutate(base = str_replace(base, "q", "")) %>%
+  group_by(Pos, base, sample) %>%
+  slice(1) %>%
+  ungroup()
+
+  
+
+consensus_diff <- tmp_consensus_diff %>%
+  select(-starts_with("q")) %>%
+  full_join(quality_values, by=c("Pos", "base", "sample")) %>%
+  mutate(base = parse_factor(base, levels=c("A", "C", "G", "T", "Gap"))) %>%
+  # for non-called bases, change base quality to NA
+  mutate(quality_value = replace(quality_value,
+                                 quality_value == 0 & value == 0,
+                                 NA))
+```
+
+### Plotting base frequency differences
+
+- Maximum base frequency difference is 4%, the marjority is under 1%.
+- largest peak in differences in base frequency is at ~ 1,500 nt, where a gap in the reference is found
+
+    - Some of the base frequency differences at this position has a depth of 0 in the pipeline sample
+
+- Mapping quality of the base is high and does not change with the frequency difference
+
+```{r base_frequency_plot, echo=FALSE}
+### plot per base differences ----
+
+consensus_diff %>%
+  # remove samples with frequencies within 0.1% of eachother 
+  filter(pc_diff >= 0.1) %>%
+  filter(consensus_greater != "pipeline_sample") %>%
+  ggplot(aes(x=pc_diff, fill=base)) +
+  geom_histogram(bins=20) +
+  scale_x_log10() + 
+  facet_grid(consensus_greater ~ base) + 
+  scale_fill_manual(values=palette_5) +
+  labs(x = "Frequency difference",
+       y = "Count",
+       title = "Differences compared to consensus, over 0.1%")
+
+
+consensus_diff %>%
+  # remove samples with frequencies within 0.1% of eachother 
+  filter(pc_diff >= 0.1) %>%
+  filter(consensus_greater != "pipeline_sample") %>%
+  ggplot() +
+  geom_histogram(bins=20, aes(x=Pos, fill=base)) +
+  facet_grid(consensus_greater ~ base) + 
+  scale_fill_manual(values=palette_5) +
+  labs(x = "Nucleotide position",
+       y = "Count",
+       title = "Differences by position, over 0.1%")+
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+
+consensus_diff %>%
+  filter(consensus_greater != "pipeline_sample") %>%
+  filter(pc_diff >= 1) %>%
+  ggplot() +
+  geom_point(aes(x=Pos, y=pc_diff, colour=Depth_pipeline)) +
+  scale_x_continuous(limits=c(1, nrow(consensus_qb))) + 
+  facet_grid(consensus_greater ~ base) +
+  scale_color_continuous(low = palette_5[1] , high = palette_5[2]) +
+  labs(x = "Nucleotide position",
+       y = "Frequency difference",
+       title = "Percentage difference per base, over 1% with read depth") +
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+
+
+consensus_diff %>%
+  filter(consensus_greater != "pipeline_sample") %>%
+  filter(pc_diff >= 1) %>%
+  ggplot() +
+  geom_point(aes(x=Pos, y=pc_diff, colour=quality_value)) +
+  scale_x_continuous(limits=c(1, nrow(consensus_qb))) + 
+  facet_grid(consensus_greater ~ base) +
+  scale_color_continuous(low = palette_5[1] , high = palette_5[3]) +
+  labs(x = "Nucleotide position",
+       y = "Frequency difference",
+       title = "Percentage difference per base, over 1% with mapping quality") +
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+# small proportion of consensus bases have no read depth (i.e. quality of NA) 
+
+
+```
+
