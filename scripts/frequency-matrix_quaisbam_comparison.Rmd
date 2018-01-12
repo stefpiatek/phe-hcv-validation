@@ -1,3 +1,12 @@
+---
+title: "Quasibam comparison"
+author: "Stef Piatek"
+date: "12 January 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(here)
 library(glue)
@@ -25,11 +34,17 @@ theme_set(theme_custom(base_size=12))
 palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 
 
+```
 
+## Comparison of consensus frequency matrix to quasibam
+
+- Consensus frequency matrix made from input FASTAs for simulating quasispecies reads
+- FASTQs have been genrated from these FASTAs, mapped back to the consensus FASTA sequence and then quasi_bam run
+- This document compares the consensus frequency matrix to the quasibam output
+
+
+```{r load_data, warning=FALSE, echo=FALSE, message=FALSE}
 sample_root <- "170908_1_"
-
-
-
 
 
 ### Load data ----
@@ -39,13 +54,22 @@ consensus_fm <- read_delim(file = here("data", glue("{sample_root}quasi_frequenc
 consensus_qb <- read_delim(file = here("data", glue("{sample_root}quasi.txt")),
                            delim = "\t") %>%
   select(-X22)  # extra column added in import
+```
 
+## Discordant basecalls
+
+- Gaps at around ~ 1,500 and ~7,000 nt seen in bam files, majority of FASTAs had gaps in these regions
+- When determining discordant basecalls, mostly gaps are called
+- No thymines are miscalled and few of the other bases
+
+```{r discordant_basecalls, echo=FALSE}
 ### Compare data where basecalls are discordant ----
 
 discordant_basecalls <- consensus_qb %>%
   filter(RefN != Cons) %>%
-  filter(!(Cons %in% c("R", "Y"))) 
-
+  filter(!(Cons == "R" & RefN %in% c("A", "G"))) %>%
+  filter(!(Cons == "Y" & RefN %in% c("C", "T")))
+  
 ggplot(discordant_basecalls, aes(x=Pos, fill=Cons)) +
   geom_histogram(bins=50) +
   scale_x_continuous(limits=c(1, nrow(consensus_fm))) +
@@ -53,11 +77,14 @@ ggplot(discordant_basecalls, aes(x=Pos, fill=Cons)) +
        y = "Count",
        title = "Discordant basecalls by position",
        fill = "Base called")
-ggsave(glue(here("plots", "hist_discordant-calls_by-position.pdf"), device="pdf"))
-# No T base miscalled, mostly just gaps and Ns
+```
 
-### Explore difference in base frequency ----
+## Basecall frequency differences
 
+### Parse data for plotting
+
+
+```{r base_frequency_data}
 tmp_consensus_diff <- consensus_fm %>%
   full_join(consensus_qb, by="Pos", suffix=c("_consensus", "_quasibam")) %>%
   # keep only rows with 200 read depth -- is this too low?
@@ -100,10 +127,16 @@ consensus_diff <- tmp_consensus_diff %>%
   mutate(quality_value = replace(quality_value,
                                  quality_value == 0 & value == 0,
                                  NA))
+```
 
-summary(consensus_diff)
+### Plotting base frequency differences
 
+- More gap base frequency in consensus and therefore fewer base-calls in consensus
+- These match to the gaps in the FASTAs, where the reference chooses a base in preference to a gap if there is at least one FASTA to support it at this position
+- Read depth of < 1,500 seems to affect base frequencies at the ~ 1,500 nt position
+- Small proportion of bases with supporting FASTAs have no reads supporting them in the quasibam (quality of NA, in grey)
 
+```{r base_frequency_plot, echo=FALSE}
 ### plot per base differences ----
 
 consensus_diff %>%
@@ -117,9 +150,7 @@ consensus_diff %>%
   scale_fill_manual(values=palette_5) +
   labs(x = "Frequency difference",
        y = "Count",
-       title = "Differences compared to consensus")
-ggsave(glue(here("plots", "hist_frequency-difference.pdf"), device="pdf"))
-# More gap reads in consensus, and less true base calls
+       title = "Differences compared to consensus, over 0.1%")
 
 
 consensus_diff %>%
@@ -132,12 +163,8 @@ consensus_diff %>%
   scale_fill_manual(values=palette_5) +
   labs(x = "Nucleotide position",
        y = "Count",
-       title = "Differences by position")+
+       title = "Differences by position, over 0.1%")+
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-ggsave(glue(here("plots", "hist_position_frequency-difference.pdf"), device="pdf"))
-# Similar positions as discodant bases, where gaps exist in consensus sequence
-# As before, more gaps and fewer bases in conensus sequence
-
 
 consensus_diff %>%
   filter(consensus_greater != "quasibam_sample") %>%
@@ -152,8 +179,6 @@ consensus_diff %>%
        y = "Frequency difference",
        title = "Percentage difference per base, over 1% with read depth") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-ggsave(glue(here("plots", "dot_frequency-difference_with-depth.pdf"), device="pdf"))
-# Read depth of less than 1,500 seems to affect bases at ~ 1,000 nt, otherwise read depth at 2,000
 
 
 consensus_diff %>%
@@ -169,5 +194,8 @@ consensus_diff %>%
        y = "Frequency difference",
        title = "Percentage difference per base, over 1% with mapping quality") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-ggsave(glue(here("plots", "dot_frequency-difference_with-quality.pdf"), device="pdf"))
 # small proportion of consensus bases have no read depth (i.e. quality of NA) 
+
+
+```
+
