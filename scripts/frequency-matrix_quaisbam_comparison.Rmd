@@ -38,9 +38,12 @@ palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 
 ## Comparison of consensus frequency matrix to quasibam
 
+** When the majority of FASTAs have a gap (- or N), the base has been removed from the consensus sequence **
+
 - Consensus frequency matrix made from input FASTAs for simulating quasispecies reads
-- FASTQs have been genrated from these FASTAs, mapped back to the consensus FASTA sequence and then quasi_bam run
+- FASTQs have been generated from these FASTAs, mapped back to the consensus FASTA sequence and then quasi_bam run
 - This document compares the consensus frequency matrix to the quasibam output
+
 
 
 ```{r load_data, warning=FALSE, echo=FALSE, message=FALSE}
@@ -58,9 +61,7 @@ consensus_qb <- read_delim(file = here("data", glue("{sample_root}quasi.txt")),
 
 ## Discordant basecalls
 
-- Gaps at around ~ 1,500 and ~7,000 nt seen in bam files, majority of FASTAs had gaps in these regions
-- When determining discordant basecalls, mostly gaps are called
-- No thymines are miscalled and few of the other bases
+- No discordant basecalls found 
 
 ```{r discordant_basecalls, echo=FALSE}
 ### Compare data where basecalls are discordant ----
@@ -68,15 +69,13 @@ consensus_qb <- read_delim(file = here("data", glue("{sample_root}quasi.txt")),
 discordant_basecalls <- consensus_qb %>%
   filter(RefN != Cons) %>%
   filter(!(Cons == "R" & RefN %in% c("A", "G"))) %>%
-  filter(!(Cons == "Y" & RefN %in% c("C", "T")))
+  filter(!(Cons == "Y" & RefN %in% c("C", "T"))) %>%
+  filter(!(Cons == "S" & RefN %in% c("G", "C"))) %>%
+  filter(!(Cons == "W" & RefN %in% c("A", "T"))) %>%
+  filter(!(Cons == "K" & RefN %in% c("G", "T"))) %>%
+  filter(!(Cons == "M" & RefN %in% c("A", "C"))) 
+
   
-ggplot(discordant_basecalls, aes(x=Pos, fill=Cons)) +
-  geom_histogram(bins=50) +
-  scale_x_continuous(limits=c(1, nrow(consensus_fm))) +
-  labs(x = "Nucleotide position",
-       y = "Count",
-       title = "Discordant basecalls by position",
-       fill = "Base called")
 ```
 
 ## Basecall frequency differences
@@ -131,10 +130,13 @@ consensus_diff <- tmp_consensus_diff %>%
 
 ### Plotting base frequency differences
 
+- Histrograms have a 0.1% difference in frequency threshold, dotplots have 1% threshold. 
 - More gap base frequency in consensus and therefore fewer base-calls in consensus
-- These match to the gaps in the FASTAs, where the reference chooses a base in preference to a gap if there is at least one FASTA to support it at this position
-- Read depth of < 1,500 seems to affect base frequencies at the ~ 1,500 nt position
-- Small proportion of bases with supporting FASTAs have no reads supporting them in the quasibam (quality of NA, in grey)
+- These match to the gaps in the FASTAs, even though the majority of FASTAs has a common base to the position
+- Read depth did not affect the percentage difference in base frequency
+- Mapping quality of all bases is good and does not vary with the difference in base frequency
+
+Overall the samples are fairly alike with differences mostly over the gappy regions.
 
 ```{r base_frequency_plot, echo=FALSE}
 ### plot per base differences ----
