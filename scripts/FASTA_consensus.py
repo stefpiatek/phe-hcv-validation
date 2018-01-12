@@ -28,8 +28,6 @@ def merge_FASTAs(sequences):
         # remove trailing whitespace
         line = line.rstrip()
         for position, base in enumerate(line):
-            # use position + 1 for 1 indexed positions
-            position += 1
             if base not in sequence_dict[position].keys():
                 sequence_dict[position][base] = 1
             else:
@@ -53,17 +51,8 @@ def make_consensus(sequence_dict):
         max_base = max(sequence_dict[position],
                        key=sequence_dict[position].get)
         if max_base not in ['-', 'N']:
+            # do not add gaps to consensus
             consensus_list.append(max_base)
-        else:
-            # Use second most common base if it exists, otherwise use maximum
-            try:
-                base = sorted(sequence_dict[position],
-                              key=sequence_dict[position].get)[-2]
-            except IndexError:
-                base = max(sequence_dict[position],
-                           key=sequence_dict[position].get)
-            finally:
-                consensus_list.append(base)
 
     return ''.join(consensus_list)
 
@@ -82,7 +71,7 @@ def get_base_frequency(position_dict, position):
             continue
     position_dict['Gap'] = gap
 
-    # change coutns to frequency by 2 decimal places
+    # change counts to frequency by 2 decimal places
     for base, base_count in position_dict.items():
         position_dict[base] = round(100 * base_count / depth, 2)
 
@@ -97,8 +86,16 @@ def get_base_frequency(position_dict, position):
 
 def make_frequency_matrix(sequence_dict):
     frequency_matrix = []
-    for position, position_dict in sequence_dict.items():
-        frequency_matrix.append(get_base_frequency(position_dict, position))
+    base_position = 1
+    for position_dict in sequence_dict.values():
+        if max(position_dict, key=position_dict.get) in ['-', 'N']:
+            # skip any positions where a gap is the dominant base
+            continue
+        else:
+            frequency_matrix.append(
+                get_base_frequency(position_dict, base_position)
+                )
+            base_position += 1
 
     return frequency_matrix
 
