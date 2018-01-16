@@ -1,7 +1,7 @@
 ---
 title: "Quasibam comparison"
 author: "Stef Piatek"
-date: "12 January 2018"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: html_document
 ---
 
@@ -38,7 +38,7 @@ palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 
 ## Comparison of consensus frequency matrix to quasibam
 
-** When the majority of FASTAs have a gap (- or N), the base has been removed from the consensus sequence **
+*When the majority of FASTAs have a gap (- or N), the base has been removed from the consensus sequence*
 
 - Consensus frequency matrix made from input FASTAs for simulating quasispecies reads
 - FASTQs have been generated from these FASTAs, mapped back to the consensus FASTA sequence and then quasi_bam run
@@ -47,21 +47,42 @@ palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 
 
 ```{r load_data, warning=FALSE, echo=FALSE, message=FALSE}
-sample_root <- "170908_1_"
+samples <- list.files(here("data")) %>%
+  str_extract("([0-9]{6}_[0-9]+)") %>%
+  unique() %>% 
+  na.omit()
 
 
-### Load data ----
-
-consensus_fm <- read_delim(file = here("data", glue("{sample_root}quasi_frequency_matrix.txt")),
-                           delim = "\t")
-consensus_qb <- read_delim(file = here("data", glue("{sample_root}quasi.txt")),
+# set up initial dataframe 
+consensus_fm <- read_delim(file = here("data", glue("{samples[1]}_quasi_frequency_matrix.txt")),
                            delim = "\t") %>%
-  select(-X22)  # extra column added in import
+  mutate(sample_name = samples[1]) 
+
+consensus_qb <- read_delim(file = here("data", glue("{samples[1]}_quasi_sorted.txt")),
+                           delim = "\t") %>%
+  select(-X22) %>%  # extra column added in import
+  mutate(sample_name = samples[1])
+
+# add all other sets to the dataframe
+for(item in 2:length(samples)){
+  sample <- samples[item]
+  consensus_fm <- read_delim(file = here("data", glue("{sample}_quasi_frequency_matrix.txt")),
+                           delim = "\t") %>%
+    mutate(sample_name = sample) %>%
+    bind_rows(consensus_fm)
+  
+  consensus_qb <- read_delim(file = here("data", glue("{sample}_quasi_sorted.txt")),
+                           delim = "\t") %>%
+    select(-X22) %>%
+    mutate(sample_name = sample) %>%
+    bind_rows(consensus_qb)  
+}
+
 ```
 
 ## Discordant basecalls
 
-- No discordant basecalls found 
+- Only discordant basecalls is where multiple bases could be called, or there is a gap
 
 ```{r discordant_basecalls, echo=FALSE}
 ### Compare data where basecalls are discordant ----
@@ -73,8 +94,13 @@ discordant_basecalls <- consensus_qb %>%
   filter(!(Cons == "S" & RefN %in% c("G", "C"))) %>%
   filter(!(Cons == "W" & RefN %in% c("A", "T"))) %>%
   filter(!(Cons == "K" & RefN %in% c("G", "T"))) %>%
-  filter(!(Cons == "M" & RefN %in% c("A", "C"))) 
+  filter(!(Cons == "M" & RefN %in% c("A", "C")))
+  
 
+discordant_basecalls %>%
+  select(Pos:Gap, Cons, sample_name) %>%
+  filter(Depth != 0) %>%
+  arrange(Pos)
   
 ```
 
@@ -85,21 +111,23 @@ discordant_basecalls <- consensus_qb %>%
 
 ```{r base_frequency_data}
 tmp_consensus_diff <- consensus_fm %>%
-  full_join(consensus_qb, by="Pos", suffix=c("_consensus", "_quasibam")) %>%
-  # keep only rows with 200 read depth -- is this too low?
+  full_join(consensus_qb, by=c("Pos", "sample_name"), suffix=c("_consensus", "_quasibam")) %>%
+  # keep only rows with 200 read depth -- is this reasonable?
   filter(Depth_quasibam >= 200) %>%
   # Keep only quasibam depth as depth
   mutate(depth = Depth_quasibam) %>%
   select(- starts_with("Depth_")) %>%
   # tidy data to have base, sample and value columns
-  gather(key = base_sample, value = value, contains("_") ) %>%
-  separate(col = base_sample, into = c("base", "sample"), sep = "_" ) %>%
+  gather(key = base_source, value = value, 
+         starts_with("A_"), starts_with("C_"), starts_with("T_"), starts_with("G_"), 
+         starts_with("Gap_")  ) %>%
+  separate(col = base_source, into = c("base", "source"), sep = "_" ) %>%
   # get difference in percent
-  group_by(Pos, base) %>%
-  arrange(sample) %>%
+  group_by(Pos, base, sample_name) %>%
+  arrange(source) %>%
   mutate(pc_diff = max(value) - min(value)) %>%
   # plot using log, so no negative. use factor to determine which value is greater
-  mutate(consensus_greater = if_else(value < lag(value),
+  mutate(consensus_greater = if_else(value > lead(value),
                                      "consensus value greater",
                                      "consensus value smaller",
                                      missing="quasibam_sample")) %>%
@@ -107,25 +135,34 @@ tmp_consensus_diff <- consensus_fm %>%
                                           levels = c("consensus value greater",
                                                      "consensus value smaller",
                                                      "quasibam_sample"))) %>%
-  ungroup()
+  ungroup() %>%
+  mutate(sample_name = if_else(str_detect(sample_name, "([0-9]{6}_[0-9]{1}$)"),
+                               str_replace(sample_name, "_", "_0"),
+                               sample_name)) 
+
+
 
 # reshape quality data into long format and merge back into consensus_diff
 quality_values <- tmp_consensus_diff %>%
-  select(Pos, starts_with("q")) %>%
+  select(Pos, starts_with("q"), sample_name) %>%
   gather(key = base, value = quality_value, starts_with("q")) %>%
   mutate(base = str_replace(base, "q", "")) %>%
-  group_by(Pos, base) %>%
+  group_by(Pos, base, sample_name) %>%
   slice(1) %>%
   ungroup()
 
 consensus_diff <- tmp_consensus_diff %>%
   select(-starts_with("q")) %>%
-  full_join(quality_values) %>%
+  full_join(quality_values, by=c("Pos", "base", "sample_name")) %>%
   mutate(base = parse_factor(base, levels=c("A", "C", "G", "T", "Gap"))) %>%
   # for non-called bases, change base quality to NA
   mutate(quality_value = replace(quality_value,
                                  quality_value == 0 & value == 0,
                                  NA))
+# remove temporary data
+rm("quality_values")
+rm("tmp_consensus_diff")
+
 ```
 
 ### Plotting base frequency differences
@@ -138,65 +175,166 @@ consensus_diff <- tmp_consensus_diff %>%
 
 Overall the samples are fairly alike with differences mostly over the gappy regions.
 
-```{r base_frequency_plot, echo=FALSE}
-### plot per base differences ----
+```{r explore_data_plotting}
 
+## Bases with coverage of 200
+consensus_qb %>%
+  group_by(Pos) %>%
+  summarise(percent_covered = 100 * n() / length(samples)) %>%
+  ggplot() +
+  geom_bar(stat = "identity", aes(x = Pos, y = percent_covered, fill = '>= 200')) + 
+  scale_x_continuous(limits=c(1, max(consensus_fm$Pos))) +
+  scale_fill_manual(values=palette_5) +
+  labs(x = "Nucleotide position",
+       y = "Percent of samples",
+       title = "Percent of samples with depth above 200",
+       fill = "Depth")
+
+
+## Distribution of frequency differences per base
 consensus_diff %>%
-  # remove samples with frequencies within 0.1% of eachother 
-  filter(pc_diff >= 0.1) %>%
   filter(consensus_greater != "quasibam_sample") %>%
+  mutate(pc_diff = pc_diff + 0.1) %>%
   ggplot(aes(x=pc_diff, fill=base)) +
-  geom_histogram(bins=20) +
+  geom_histogram(bins=40) +
   scale_x_log10() + 
+  scale_y_log10() + 
   facet_grid(consensus_greater ~ base) + 
   scale_fill_manual(values=palette_5) +
-  labs(x = "Frequency difference",
+  labs(x = "Frequency difference (with 0.1% added)",
        y = "Count",
-       title = "Differences compared to consensus, over 0.1%")
+       title = "Differences compared to consensus")
 
-
+## Distribution of frequency differences per sample
 consensus_diff %>%
-  # remove samples with frequencies within 0.1% of eachother 
-  filter(pc_diff >= 0.1) %>%
+  filter(consensus_greater != "quasibam_sample") %>%
+  mutate(pc_diff = pc_diff + 0.1) %>%
+  ggplot(aes(x=pc_diff, fill=sample_name)) +
+  geom_histogram(bins=40) +
+  scale_x_log10() + 
+  scale_y_log10() + 
+  facet_wrap(~ sample_name) + 
+  labs(x = "Frequency difference (with 0.1% added)",
+       y = "Count",
+       title = "Differences compared to consensus")
+# sample 13 is partcularily bad for large differences
+
+## proportion of samples with base difference at position
+consensus_diff %>%
+  filter(consensus_greater != "quasibam_sample") %>%
+  mutate(greater_1_pc = if_else(pc_diff >= 1, 1, 0)) %>% 
+  group_by(Pos, base, source) %>%
+  summarise(gt_1_pc = sum(100 * greater_1_pc) / n(),
+            max_pc_diff = max(pc_diff)) %>%
+  filter(max_pc_diff >= 1) %>%
+ggplot(aes(x = max_pc_diff, y = gt_1_pc, colour = base, alpha = 0.2)) +
+  geom_jitter() +
+  scale_x_log10() + 
+  facet_grid(~ base) + 
+  scale_colour_manual(values=palette_5) +
+  guides(alpha=FALSE) + 
+  labs(x = "Maximum difference in base frequency",
+       y = "Percent of samples",
+       title = "Percent of samples with >1% difference in base frequency")
+
+## Distribution of differences greater than 1% by reference position
+consensus_diff %>%
+  # remove samples with frequencies within 1% of eachother 
+  filter(pc_diff >= 1) %>%
   filter(consensus_greater != "quasibam_sample") %>%
   ggplot() +
-  geom_histogram(bins=20, aes(x=Pos, fill=base)) +
+  geom_histogram(bins=40, aes(x=Pos, fill=base)) +
   facet_grid(consensus_greater ~ base) + 
   scale_fill_manual(values=palette_5) +
   labs(x = "Nucleotide position",
        y = "Count",
-       title = "Differences by position, over 0.1%")+
+       title = "Differences by position, over 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
 
+
+## Read depth of reads with frequency differences greater than 1%
 consensus_diff %>%
   filter(consensus_greater != "quasibam_sample") %>%
   filter(pc_diff >= 1) %>%
   ggplot() +
-  geom_point(aes(x=Pos, y=pc_diff, colour=depth)) +
-  scale_y_log10() + 
-  scale_x_continuous(limits=c(1, nrow(consensus_fm))) + 
+  geom_histogram(bins = 40, aes(x=depth, fill=base)) +
   facet_grid(consensus_greater ~ base) +
-  scale_color_continuous(low = palette_5[1] , high = palette_5[2]) +
-  labs(x = "Nucleotide position",
-       y = "Frequency difference",
-       title = "Percentage difference per base, over 1% with read depth") +
+  scale_fill_manual(values=palette_5) +
+  labs(x = "Read Depth",
+       y = "Count",
+       title = "Read depth of frequency differences >= 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
 
 
+## Per sample distribution by nucleotide position
 consensus_diff %>%
   filter(consensus_greater != "quasibam_sample") %>%
+  mutate(greater_1_pc = if_else(pc_diff >= 1, 1, 0)) %>% 
+  filter(quality_value > 1) %>%
+  filter(source == "consensus") %>%
+  group_by(Pos, base, source) %>%
+  mutate(gt_1_pc = sum(100 * greater_1_pc) / n()) %>%
+  ungroup() %>%
+  group_by(Pos) %>%
   filter(pc_diff >= 1) %>%
+  filter(pc_diff == max(pc_diff)) %>%  # Keep maximum diff per position, not per base & position
   ggplot() +
-  geom_point(aes(x=Pos, y=pc_diff, colour=quality_value)) +
-  scale_y_log10() + 
-  scale_x_continuous(limits=c(1, nrow(consensus_fm))) + 
-  facet_grid(consensus_greater ~ base) +
+  geom_point(stat = "identity", aes(x = Pos, y = pc_diff, alpha = 0.2, colour = gt_1_pc)) +
+  scale_y_log10() +
+  facet_wrap(~ sample_name) + 
   scale_color_continuous(low = palette_5[1] , high = palette_5[3]) +
-  labs(x = "Nucleotide position",
-       y = "Frequency difference",
-       title = "Percentage difference per base, over 1% with mapping quality") +
+  guides(alpha = FALSE) +
+  labs(x = "Nucleotide Position",
+       y = "Maximum percent difference per base",
+       colour = "Percent samples\nabove 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-# small proportion of consensus bases have no read depth (i.e. quality of NA) 
+
+
+```
+
+## Number of positions comparison
+
+```{r filtered_comparison}
+
+# Positions have at least less than 1% difference in base frequency
+consensus_diff %>%
+  filter(consensus_greater != "quasibam_sample") %>%
+  filter(quality_value > 1) %>%
+  filter(source == "consensus") %>%
+  group_by(Pos) %>%
+  summarise(max_diff = max(pc_diff)) %>%
+  filter(max_diff < 1) %>%
+  nrow()
+  
+# Positions have at least one base with > 1% difference
+consensus_diff %>%
+  filter(consensus_greater != "quasibam_sample") %>%
+  filter(pc_diff >= 1) %>%
+  filter(quality_value > 1) %>%
+  filter(source == "consensus") %>%
+  group_by(Pos) %>%
+  filter(pc_diff == max(pc_diff)) %>%
+  nrow()
+
+# Positions have at least one base with > 5% difference
+consensus_diff %>%
+  filter(consensus_greater != "quasibam_sample") %>%
+  filter(pc_diff >= 5) %>%
+  filter(quality_value > 1) %>%
+  filter(source == "consensus") %>%
+  group_by(Pos) %>%
+  filter(pc_diff == max(pc_diff)) %>%
+  nrow()
+
+# Positions have at least one base with > 10% difference
+consensus_diff %>%
+  filter(consensus_greater != "quasibam_sample") %>%
+  filter(pc_diff >= 10) %>%
+  filter(quality_value > 1) %>%
+  filter(source == "consensus") %>%
+  group_by(Pos) %>%
+  filter(pc_diff == max(pc_diff)) %>%
+  nrow()
 
 
 ```
