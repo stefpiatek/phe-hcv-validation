@@ -10,10 +10,10 @@ class TestMergeFASTAs:
                      ">seq3", "ACAG",
                      ]
         output = {
-            1: {'A': 3},
-            2: {'C': 2, 'A': 1},
-            3: {'T': 2, 'A': 1},
-            4: {'G': 3},
+            0: {'A': 3},
+            1: {'C': 2, 'A': 1},
+            2: {'T': 2, 'A': 1},
+            3: {'G': 3},
             }
 
         assert FASTA_consensus.merge_FASTAs(sequences) == output
@@ -24,10 +24,10 @@ class TestMergeFASTAs:
                      "ACAG",
                      ]
         output = {
-            1: {'A': 3},
-            2: {'C': 1, 'A': 2},
-            3: {'T': 1, 'A': 2},
-            4: {'G': 3},
+            0: {'A': 3},
+            1: {'C': 1, 'A': 2},
+            2: {'T': 1, 'A': 2},
+            3: {'G': 3},
             }
 
         assert FASTA_consensus.merge_FASTAs(sequences) == output
@@ -38,11 +38,11 @@ class TestMergeFASTAs:
                      "ACA",
                      ]
         output = {
-            1: {'A': 3},
-            2: {'C': 1, 'A': 2},
-            3: {'T': 1, 'A': 2},
-            4: {'G': 2},
-            5: {'A': 1},
+            0: {'A': 3},
+            1: {'C': 1, 'A': 2},
+            2: {'T': 1, 'A': 2},
+            3: {'G': 2},
+            4: {'A': 1},
             }
 
         assert FASTA_consensus.merge_FASTAs(sequences) == output
@@ -74,37 +74,37 @@ class TestMakeConsensus:
 
     def test_unequal_input(self):
         input_dict = {
-            1: {'A': 3},
-            2: {'C': 1, 'A': 2},
-            3: {'T': 1, 'A': 2},
-            4: {'G': 2},
-            5: {'A': 1},
+            0: {'A': 3},
+            1: {'C': 1, 'A': 2},
+            2: {'T': 1, 'A': 2},
+            3: {'G': 2},
+            4: {'A': 1},
             }
         output = "AAAGA"
 
         assert FASTA_consensus.make_consensus(input_dict) == output
 
-    def test_gap_not_returned(self):
+    def test_partial_gap_not_returned(self):
         input_dict = {
-            1: {'A': 3},
-            2: {'C': 1, '-': 2},
-            3: {'T': 1, 'A': 2},
-            4: {'G': 2},
-            5: {'A': 1},
+            0: {'A': 3},
+            1: {'C': 1, '-': 2},
+            2: {'T': 1, 'A': 2},
+            3: {'G': 2},
+            4: {'A': 1},
             }
-        output = "ACAGA"
+        output = "AAGA"
 
         assert FASTA_consensus.make_consensus(input_dict) == output
 
-    def test_gap_returned(self):
+    def test_complete_gap_not_returned(self):
         input_dict = {
-            1: {'A': 3},
-            2: {'-': 3},
-            3: {'T': 1, 'A': 2},
-            4: {'G': 2},
-            5: {'A': 1},
+            0: {'A': 3},
+            1: {'-': 3},
+            2: {'T': 1, 'A': 2},
+            3: {'G': 2},
+            4: {'A': 1},
             }
-        output = "A-AGA"
+        output = "AAGA"
 
         assert FASTA_consensus.make_consensus(input_dict) == output
 
@@ -116,7 +116,7 @@ class TestGetBaseFrequency:
     def test_basic(self):
         input_dict = {'C': 2, 'A': 1}
 
-        output = frequency(Pos=0,
+        output = frequency(Pos=1,
                            A=33.33,
                            C=66.67,
                            G=0,
@@ -124,7 +124,7 @@ class TestGetBaseFrequency:
                            Gap=0,
                            Depth=3)
 
-        assert FASTA_consensus.get_base_frequency(input_dict, 0) == output
+        assert FASTA_consensus.get_base_frequency(input_dict, 1) == output
 
     def test_gap_merge(self):
         input_dict = {'A': 2, 'C': 3, 'G': 4, 'T': 5, '-': 6, 'N': 7}
@@ -141,27 +141,20 @@ class TestGetBaseFrequency:
 
 
 class TestMakeFrequencyMatrix:
-    def test_two_positions(self):
+    def test_skip_gaps(self):
         input_dict = {
             0: {'C': 2, 'A': 1},
             1: {'A': 2, 'C': 3, 'G': 4, 'T': 5, '-': 6, 'N': 7},
         }
 
-        freq1 = frequency(Pos=0,
+        freq1 = frequency(Pos=1,
                           A=33.33,
                           C=66.67,
                           G=0,
                           T=0,
                           Gap=0,
                           Depth=3)
-        freq2 = frequency(Pos=1,
-                          A=7.41,
-                          C=11.11,
-                          G=14.81,
-                          T=18.52,
-                          Gap=48.15,
-                          Depth=27)
 
-        output = [freq1, freq2]
+        output = [freq1]
 
         assert FASTA_consensus.make_frequency_matrix(input_dict) == output
