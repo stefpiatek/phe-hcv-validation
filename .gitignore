@@ -4,3 +4,4 @@
 !.gitkeep
 data/*
 .Rproj.user
+*.html
