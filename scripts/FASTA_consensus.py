@@ -56,8 +56,8 @@ def make_consensus(sequence_dict):
 
     return ''.join(consensus_list)
 
-frequency = namedtuple('base', 'Pos A C G T Gap Depth')
-default_frequency = frequency(None, 0, 0, 0, 0, 0, 0)
+frequency = namedtuple('base', 'Pos A C G T Gap Depth RefN')
+default_frequency = frequency(None, 0, 0, 0, 0, 0, 0, None)
 
 
 def get_base_frequency(position_dict, position):
@@ -77,6 +77,7 @@ def get_base_frequency(position_dict, position):
 
     position_dict['Pos'] = position
     position_dict['Depth'] = depth
+    position_dict['RefN'] = max(position_dict, key=position_dict.get)
 
     # replace default frequency with position_dict values
     base_frequency = default_frequency._replace(**position_dict)
