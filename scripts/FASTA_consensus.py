@@ -78,6 +78,7 @@ def get_base_frequency(position_dict, position):
     position_dict['RefN'] = max(position_dict, key=position_dict.get)
     position_dict['Pos'] = position
     position_dict['Depth'] = depth
+    position_dict['RefN'] = max(position_dict, key=position_dict.get)
 
     # replace default frequency with position_dict values
     base_frequency = default_frequency._replace(**position_dict)
