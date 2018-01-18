@@ -79,7 +79,8 @@ pipeline_qb <- read_delim(file = here("data", glue("{samples[1]}_{pipeline}_quas
   select(-X22) %>%  # extra column added in import
   mutate(RefN = str_to_upper(RefN)) %>%
   mutate(sample_name = samples[1])%>%
-  filter_to_roi()
+  filter_to_roi() %>%
+  compensate_for_indels(sample = samples[1], ref_table = consensus_qb)
 
 # add all other sets to the dataframe
 for(item in 2:length(samples)){
@@ -96,28 +97,17 @@ for(item in 2:length(samples)){
     mutate(sample_name = sample) %>%
     mutate(RefN = str_to_upper(RefN)) %>%
     filter_to_roi() %>%
-    # sample 18 is out of sync with it's reference for all samples by 1
+    ## vicuna_bwa indel correction
+    compensate_for_indels(sample = sample, ref_table = consensus_qb) %>% 
+    # sample 18 is out of sync with it's own reference for all samples by 1
     mutate(Pos = if_else(sample_name == "170908_18" & pipeline == "vicuna_bwa",
                          Pos -1,
                          as.double(Pos))) %>%
     mutate(RefN = if_else(sample_name == "170908_18" & pipeline == "vicuna_bwa",
                           lag(RefN),
                           RefN)) %>%
-    ## vicuna_bwa indel correction
-    mutate(Pos = if_else(sample_name == "170908_3" & pipeline == "vicuna_bwa" & 
-                           region_name == "NS5A" & between(Pos, 1163, 1170),
-                         -1,
-                         as.double(Pos))) %>%
-    mutate(Pos = if_else(sample_name == "170908_14" & pipeline == "vicuna_bwa" & 
-                           region_name == "NS5A" & between(Pos, 1331, 1342),
-                         -1,
-                         as.double(Pos))) %>%
-    mutate(Pos = if_else(sample_name == "170908_18" & pipeline == "vicuna_bwa" & 
-                           region_name == "NS5A" & between(Pos, 1164, 1173),
-                         -1,
-                         as.double(Pos))) %>%
-    filter(Pos > 0) %>%
-    bind_rows(pipeline_qb)  
+    filter(Pos >= 1) %>%
+    bind_rows(pipeline_qb)
 }
 
 # change Positions to fit indel correction
@@ -130,9 +120,15 @@ pipeline_qb <- pipeline_qb %>%
 
 ## Size of sequence & Discordant basecalls
 
-- No discordant base calls
+
 
 ```{r discordant_basecalls, echo=FALSE}
+### Bases removed from pipeline sequences 
+indel_tbl %>%
+  group_by(sample_name, region_name, RefN, indel_type) %>%
+  summarise(total = n(),
+            positions = glue("{min(Pos)} - {max(Pos)}"))
+
 
 ### Compare size of reference genome between consensus and pipeline
 ref_length_consensus <- consensus_qb %>%
