@@ -1,12 +1,14 @@
 ---
-title: "IVA-BWA compared with consensus"
+title: "Pipeline comparison to consensus"
 author: "Stef Piatek"
-date: "12 January 2018"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: html_document
+params:
+  pipeline: 'vicuna_bwa'
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE)#
 library(readr)
 library(here)
 library(glue)
@@ -29,9 +31,12 @@ theme_custom <- function (base_size = 12, base_family = "") {
       plot.margin= unit(c(0.5, 0, 0.5, 0), "cm")# top right bottom left
     )
 }
-theme_set(theme_custom(base_size=12))
+theme_set(theme_custom())
 
 palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
+
+
+
 
 
 ```
@@ -43,43 +48,125 @@ palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
     - FASTQs have been generated from these FASTAs
     - Mapped back to the consensus FASTA sequence 
     - quasi_bam ran on the resulting bam file
-  
-- This document compares the consensus quasibam output to the pipeline (VICUNA-BWA)
 
-load data:
+
+This document compares the consensus quasibam output to the pipeline.
+
+- The NS3, NS5A and NS5B regions have been extracted from the files, discarding everything else
+
 
 ```{r load_data, warning=FALSE, message=FALSE}
-sample_root <- "170908_1_"
-pipeline <- "iva_bwa"
+# Load helper scripts and hcv reference information
+source(here("scripts", "helper_functions.R"))
+pipeline <- params$pipeline
 
 ### Load data ----
 
-consensus_qb <- read_delim(file = here("data", glue("{sample_root}quasi.txt")),
+samples <- list.files(here("data")) %>%
+  str_extract("([0-9]{6}_[0-9]+)") %>%
+  unique() %>% 
+  na.omit()
+
+
+# set up initial dataframe 
+consensus_qb <- read_delim(file = here("data", glue("{samples[1]}_quasi_sorted.txt")),
                            delim = "\t") %>%
-  select(-X22)  # extra column added in import
-denovo_qb <- read_delim(file = here("data", glue("{sample_root}{pipeline}_quasibam.txt")),
+  mutate(sample_name = samples[1])%>%
+  filter_to_roi()
+
+pipeline_qb <- read_delim(file = here("data", glue("{samples[1]}_{pipeline}_quasibam.txt")),
                            delim = "\t") %>%
-  select(-X22)  # extra column added in import
+  select(-X22) %>%  # extra column added in import
+  mutate(RefN = str_to_upper(RefN)) %>%
+  mutate(sample_name = samples[1])%>%
+  filter_to_roi()
+
+# add all other sets to the dataframe
+for(item in 2:length(samples)){
+  sample <- samples[item]
+  consensus_qb <- read_delim(file = here("data", glue("{sample}_quasi_frequency_matrix.txt")),
+                           delim = "\t") %>%
+    mutate(sample_name = sample) %>%
+    filter_to_roi() %>%
+    bind_rows(consensus_qb)
+  
+  pipeline_qb <- read_delim(file = here("data", glue("{sample}_{pipeline}_quasibam.txt")),
+                           delim = "\t") %>%
+    select(-X22) %>%
+    mutate(sample_name = sample) %>%
+    mutate(RefN = str_to_upper(RefN)) %>%
+    filter_to_roi() %>%
+    # sample 18 is out of sync with it's reference for all samples by 1
+    mutate(Pos = if_else(sample_name == "170908_18" & pipeline == "vicuna_bwa",
+                         Pos -1,
+                         as.double(Pos))) %>%
+    mutate(RefN = if_else(sample_name == "170908_18" & pipeline == "vicuna_bwa",
+                          lag(RefN),
+                          RefN)) %>%
+    ## vicuna_bwa indel correction
+    mutate(Pos = if_else(sample_name == "170908_3" & pipeline == "vicuna_bwa" & 
+                           region_name == "NS5A" & between(Pos, 1163, 1170),
+                         -1,
+                         as.double(Pos))) %>%
+    mutate(Pos = if_else(sample_name == "170908_14" & pipeline == "vicuna_bwa" & 
+                           region_name == "NS5A" & between(Pos, 1331, 1342),
+                         -1,
+                         as.double(Pos))) %>%
+    mutate(Pos = if_else(sample_name == "170908_18" & pipeline == "vicuna_bwa" & 
+                           region_name == "NS5A" & between(Pos, 1164, 1173),
+                         -1,
+                         as.double(Pos))) %>%
+    filter(Pos > 0) %>%
+    bind_rows(pipeline_qb)  
+}
+
+# change Positions to fit indel correction
+pipeline_qb <- pipeline_qb %>%
+  group_by(sample_name, region_name) %>%
+  mutate(Pos = 1:n()) %>%
+  ungroup()
 
 ```
 
-## Discordant basecalls
+## Size of sequence & Discordant basecalls
 
 - No discordant base calls
 
 ```{r discordant_basecalls, echo=FALSE}
-### Compare data where basecalls are discordant ----
 
-discordant_basecalls <- consensus_qb %>%
+### Compare size of reference genome between consensus and pipeline
+ref_length_consensus <- consensus_qb %>%
+  group_by(sample_name, region_name) %>%
+  summarise(ref_length = max(Pos))
+
+pipeline_qb %>%
+  group_by(sample_name, region_name) %>%
+  summarise(ref_length = max(Pos)) %>%
+  full_join(ref_length_consensus, by = c("sample_name", "region_name")
+            , suffix = c("_pipeline", "_consensus")) %>%
+  mutate(length_difference = ref_length_pipeline - ref_length_consensus) %>%
+  filter(length_difference != 0) %>%
+  arrange(sample_name)
+
+### Compare data where basecalls are discordant within the sample and ref ----
+
+discordant_basecalls <- pipeline_qb %>%
   filter(RefN != Cons) %>%
-  filter(!(Cons == "R" & RefN %in% c("A", "G"))) %>%
-  filter(!(Cons == "Y" & RefN %in% c("C", "T"))) %>%
-  filter(!(Cons == "S" & RefN %in% c("G", "C"))) %>%
-  filter(!(Cons == "W" & RefN %in% c("A", "T"))) %>%
-  filter(!(Cons == "K" & RefN %in% c("G", "T"))) %>%
-  filter(!(Cons == "M" & RefN %in% c("A", "C"))) 
+  filter(!(Cons == "R" & str_detect(RefN, "[AG]"))) %>%
+  filter(!(Cons == "Y" & str_detect(RefN, "[CT]"))) %>%
+  filter(!(Cons == "S" & str_detect(RefN, "[GC]"))) %>%
+  filter(!(Cons == "W" & str_detect(RefN, "[AT]"))) %>%
+  filter(!(Cons == "K" & str_detect(RefN, "[GT]"))) %>%
+  filter(!(Cons == "M" & str_detect(RefN, "[AC]")))
 
-discordant_basecalls
+discordant_basecalls %>%
+  select(Pos:Gap, Cons, sample_name, region_name) %>%
+  filter(Depth != 0) %>%
+  arrange(Pos) %>%
+  group_by(region_name, sample_name, Cons) %>%
+  summarise(total = n(),
+            positions = glue("{min(Pos)} - {max(Pos)}"))
+
 ```
 
 ## Basecall frequency differences
@@ -88,46 +175,63 @@ discordant_basecalls
 
 
 ```{r base_frequency_data}
+
+
 tmp_consensus_diff <- consensus_qb %>%
-  full_join(denovo_qb, by="Pos", suffix=c("_consensus", "_pipeline")) %>%
-  # keep only rows with 200 read depth -- is this too low?
-  filter(Depth_consensus >= 200 & Depth_pipeline >= 200) %>%
+  full_join(pipeline_qb, by=c("Pos", "sample_name", "region_name"), 
+            suffix=c("_consensus", "_pipeline")) %>%
+  # keep only rows with 200 read depth -- is this reasonable?
+  filter(Depth_pipeline >= 200) %>%
+  # Keep only pipeline depth as depth
+  mutate(depth = Depth_pipeline) %>%
+  select(- starts_with("Depth_")) %>%
   # tidy data to have base, sample and value columns
-  gather(key = base_sample, value = value, 
-         starts_with("A_"), starts_with("C_"), starts_with("T_"), 
-         starts_with("G_"), starts_with("Gap_") ) %>%
-  separate(col = base_sample, into = c("base", "sample"), sep = "_" ) %>%
+  gather(key = base_source, value = value, 
+         starts_with("A_"), starts_with("C_"), starts_with("T_"), starts_with("G_"), 
+         starts_with("Gap_")) %>%
+  separate(col = base_source, into = c("base", "source"), sep = "_" ) %>%
   # get difference in percent
-  group_by(Pos, base) %>%
-  arrange(sample) %>%
+  group_by(Pos, base, sample_name, region_name) %>%
+  arrange(source) %>%
   mutate(pc_diff = max(value) - min(value)) %>%
   # plot using log, so no negative. use factor to determine which value is greater
   mutate(consensus_greater = if_else(value > lead(value),
                                      "consensus value greater",
                                      "consensus value smaller",
                                      missing="pipeline_sample")) %>%
-  ungroup()
+  mutate(consensus_greater = parse_factor(consensus_greater, 
+                                          levels = c("consensus value greater",
+                                                     "consensus value smaller",
+                                                     "pipeline_sample"))) %>%
+  ungroup() %>%
+  mutate(sample_name = if_else(str_detect(sample_name, "([0-9]{6}_[0-9]{1}$)"),
+                               str_replace(sample_name, "_", "_0"),
+                               sample_name)) 
 
 # reshape quality data into long format and merge back into consensus_diff
 quality_values <- tmp_consensus_diff %>%
-  select(Pos, starts_with("q")) %>%
-  gather(key = base_sample, value = quality_value, contains("_")) %>%
-  separate(col = base_sample, into = c("base", "sample"), sep = "_" ) %>%
+  select(Pos, starts_with("q"), sample_name, region_name) %>%
+  gather(key = base_source, value = quality_value, 
+         starts_with("q")) %>%
+  separate(col = base_source, into = c("base", "source"), sep = "_" ) %>%
   mutate(base = str_replace(base, "q", "")) %>%
-  group_by(Pos, base, sample) %>%
-  slice(1) %>%
+  group_by(Pos, base, sample_name, source, region_name) %>%
+  dplyr::slice(1) %>%
   ungroup()
 
-  
 
 consensus_diff <- tmp_consensus_diff %>%
   select(-starts_with("q")) %>%
-  full_join(quality_values, by=c("Pos", "base", "sample")) %>%
+  full_join(quality_values, by=c("Pos", "base", "sample_name", "source", "region_name")) %>%
   mutate(base = parse_factor(base, levels=c("A", "C", "G", "T", "Gap"))) %>%
   # for non-called bases, change base quality to NA
   mutate(quality_value = replace(quality_value,
                                  quality_value == 0 & value == 0,
                                  NA))
+# remove temporary data
+rm("quality_values")
+rm("tmp_consensus_diff")
+
 ```
 
 ### Plotting base frequency differences
@@ -141,61 +245,179 @@ consensus_diff <- tmp_consensus_diff %>%
 
 ```{r base_frequency_plot, echo=FALSE}
 ### plot per base differences ----
+pipeline_qb %>%
+  group_by(Pos, region_name) %>%
+  summarise(percent_covered = 100 * n() / length(samples)) %>%
+  arrange(region_name) %>%
+  ggplot() +
+  geom_point(aes(x = Pos, y = percent_covered, colour = '>= 200')) + 
+  scale_x_continuous(limits=c(1, max(consensus_qb$Pos))) +
+  scale_colour_manual(values=palette_5) +
+  facet_wrap(~region_name) + 
+  labs(x = "Nucleotide position",
+       y = "Percent of samples",
+       title = "Percent of samples with depth above 200",
+       colour = "Depth")
 
+# double check no missed rows
+pipeline_qb %>%
+  group_by(Pos, region_name) %>%
+  summarise(percent_covered = 100 * n() / length(samples)) %>%
+  group_by(region_name) %>%
+  arrange(region_name) %>%
+  filter(lag(Pos) != Pos - 1)
+# coverage looks good
+
+## Distribution of frequency differences per base ----
 consensus_diff %>%
-  # remove samples with frequencies within 0.1% of eachother 
-  filter(pc_diff >= 0.1) %>%
   filter(consensus_greater != "pipeline_sample") %>%
+  mutate(pc_diff = pc_diff + 0.1) %>%
   ggplot(aes(x=pc_diff, fill=base)) +
-  geom_histogram(bins=20) +
+  geom_histogram(bins=40) +
   scale_x_log10() + 
-  facet_grid(consensus_greater ~ base) + 
+  scale_y_log10() + 
+  facet_grid(consensus_greater ~ region_name) + 
   scale_fill_manual(values=palette_5) +
-  labs(x = "Frequency difference",
+  labs(x = "Frequency difference (with 0.1% added)",
        y = "Count",
-       title = "Differences compared to consensus, over 0.1%")
+       title = "Differences compared to consensus")
+# 
 
 
+## Distribution of frequency differences per sample ----
 consensus_diff %>%
-  # remove samples with frequencies within 0.1% of eachother 
-  filter(pc_diff >= 0.1) %>%
+  filter(consensus_greater != "pipeline_sample") %>%
+  mutate(pc_diff = pc_diff + 0.1) %>%
+  ggplot(aes(x=pc_diff, fill=sample_name)) +
+  geom_histogram(bins=40) +
+  scale_x_log10() + 
+  scale_y_log10() + 
+  facet_wrap(~ sample_name) + 
+  labs(x = "Frequency difference (with 0.1% added)",
+       y = "Count",
+       title = "Differences compared to consensus")
+# 
+
+## proportion of samples with base difference at position ----
+consensus_diff %>%
+  filter(consensus_greater != "pipeline_sample") %>%
+  mutate(greater_1_pc = if_else(pc_diff >= 1, 1, 0)) %>% 
+  group_by(Pos, base, source, region_name) %>%
+  summarise(gt_1_pc = sum(100 * greater_1_pc) / n(),
+            max_pc_diff = max(pc_diff)) %>%
+  filter(max_pc_diff >= 1) %>%
+ggplot(aes(x = max_pc_diff, y = gt_1_pc, colour = base, alpha = 0.2)) +
+  geom_jitter() +
+  scale_x_log10() + 
+  facet_grid(region_name ~ base) + 
+  scale_colour_manual(values=palette_5) +
+  guides(alpha=FALSE) + 
+  labs(x = "Maximum difference in base frequency",
+       y = "Percent of samples",
+       title = "Percent of samples with >1% difference in base frequency")
+# 
+
+## Distribution of differences greater than 1% by reference position ----
+consensus_diff %>%
+  # remove samples with frequencies within 1% of eachother 
+  filter(pc_diff >= 1) %>%
   filter(consensus_greater != "pipeline_sample") %>%
   ggplot() +
-  geom_histogram(bins=20, aes(x=Pos, fill=base)) +
-  facet_grid(consensus_greater ~ base) + 
+  geom_histogram(bins=40, aes(x=Pos, fill=base)) +
+  facet_grid(consensus_greater ~ region_name) + 
   scale_fill_manual(values=palette_5) +
   labs(x = "Nucleotide position",
        y = "Count",
-       title = "Differences by position, over 0.1%")+
+       title = "Differences by position, over 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+#
 
+## Read depth of reads with frequency differences greater than 1%
 consensus_diff %>%
   filter(consensus_greater != "pipeline_sample") %>%
   filter(pc_diff >= 1) %>%
   ggplot() +
-  geom_point(aes(x=Pos, y=pc_diff, colour=Depth_pipeline)) +
-  scale_x_continuous(limits=c(1, nrow(consensus_qb))) + 
-  facet_grid(consensus_greater ~ base) +
-  scale_color_continuous(low = palette_5[1] , high = palette_5[2]) +
-  labs(x = "Nucleotide position",
-       y = "Frequency difference",
-       title = "Percentage difference per base, over 1% with read depth") +
+  geom_histogram(bins = 40, aes(x=depth, fill=base)) +
+  facet_grid(consensus_greater ~ region_name) +
+  scale_fill_manual(values=palette_5) +
+  labs(x = "Read Depth",
+       y = "Count",
+       title = "Read depth of frequency differences >= 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+#
 
-
+## Per sample distribution by nucleotide position
 consensus_diff %>%
-  filter(consensus_greater != "pipeline_sample") %>%
+  filter(source == "pipeline") %>% 
+  mutate(greater_1_pc = if_else(pc_diff >= 1, 1, 0)) %>% 
+  filter(quality_value > 1) %>%
+  group_by(Pos, region_name) %>%
+  mutate(gt_1_pc = sum(100 * greater_1_pc) / n()) %>%
   filter(pc_diff >= 1) %>%
+  filter(pc_diff == max(pc_diff)) %>%  # Keep maximum diff per position, not per base & position
   ggplot() +
-  geom_point(aes(x=Pos, y=pc_diff, colour=quality_value)) +
-  scale_x_continuous(limits=c(1, nrow(consensus_qb))) + 
-  facet_grid(consensus_greater ~ base) +
-  scale_color_continuous(low = palette_5[1] , high = palette_5[3]) +
-  labs(x = "Nucleotide position",
-       y = "Frequency difference",
-       title = "Percentage difference per base, over 1% with mapping quality") +
+  geom_point(stat = "identity", aes(x = Pos, y = pc_diff, alpha = 0.2, 
+                                    colour = gt_1_pc)) +
+  scale_y_log10() +
+  facet_wrap( ~ sample_name) + 
+  scale_color_continuous(low = palette_5[1] , high = palette_5[5]) +
+  guides(alpha = FALSE) +
+  labs(x = "Nucleotide Position",
+       y = "Maximum percent difference per base",
+       colour = "Percent bases\nabove 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-# small proportion of consensus bases have no read depth (i.e. quality of NA) 
+# 
+
+
+```
+
+## Number of positions comparison
+
+```{r filtered_comparison, echo=FALSE}
+# Positions have at least less than 1% difference in base frequency
+print("Positions with less than 1% difference")
+consensus_diff %>%
+  filter(quality_value > 1) %>%
+  filter(source == "pipeline") %>%
+  group_by(Pos, region_name) %>%
+  summarise(max_diff = max(pc_diff)) %>%
+  filter(max_diff < 1) %>%
+  group_by(region_name)  %>%
+  summarise(number_of_positions = n())
+
+# Positions have at least one base with > 1% difference
+print("Positions with more than 1% difference")
+consensus_diff %>%
+  filter(pc_diff >= 1) %>%
+  filter(quality_value > 1) %>%
+  filter(source == "pipeline") %>%
+  group_by(Pos, region_name) %>%
+  filter(pc_diff == max(pc_diff)) %>%
+  group_by(region_name) %>%
+  summarise(number_of_positions = n())
+
+# Positions have at least one base with > 5% difference
+print("Positions with more than 5% difference")
+consensus_diff %>%
+  filter(pc_diff >= 5) %>%
+  filter(quality_value > 1) %>%
+  filter(source == "pipeline") %>%
+  group_by(Pos, region_name) %>%
+  filter(pc_diff == max(pc_diff)) %>%
+  group_by(region_name) %>%
+  summarise(number_of_positions = n())
+
+# Positions have at least one base with > 10% difference
+print("Positions with more than 10% difference")
+consensus_diff %>%
+  filter(pc_diff >= 10) %>%
+  filter(quality_value > 1) %>%
+  filter(source == "pipeline") %>%
+  group_by(Pos, region_name) %>%
+  filter(pc_diff == max(pc_diff)) %>%
+  select(Pos:region_name, Cons_pipeline, depth:pc_diff, -source, base) %>%
+  ungroup() %>%
+  arrange(Pos, region_name)
 
 
 ```
