@@ -388,8 +388,8 @@ consensus_diff %>%
 
 # total number of bases
 total_bases <- consensus_qb %>%
-  group_by(region_name) %>%
-  summarise(max_length = max(Pos))
+  group_by(region_name, sample_name) %>%
+  summarise(max_length = max(Pos) * 4)  # as 4 bases
 
 # Positions have at least less than 1% difference in base frequency
 print("Positions with less than 1% difference")
@@ -403,53 +403,72 @@ consensus_diff %>%
   summarise(number_of_positions = n())
 
 # Positions have at least one base with > 1% difference
-print("Positions with more than 1% difference")
 pass_filter <- consensus_diff %>%
   filter(pc_diff >= 1) %>%
   filter(quality_value > 1) %>%
-  filter(source == "pipeline") %>%
-  group_by(Pos, region_name) %>%
-  filter(pc_diff == max(pc_diff)) %>%
-  group_by(region_name) %>%
-  summarise(number_of_positions = n()) 
-pass_filter
+  filter(source == "pipeline") 
 
-prop.test(sum(pass_filter$number_of_positions), 
-          sum(total_bases$max_length)) %>%
+print("Positions with more than 1% difference")
+pass_filter %>%
+  group_by(Pos, region_name) %>%
+  filter(Pos == max(Pos)) %>%
+  group_by(region_name) %>%
+  summarise(number_of_positions = n())
+
+bases_pass <- pass_filter %>%
+  filter(base != "Gap") %>%
+  group_by(region_name) %>%
+  summarise(number_of_bases = n())
+
+  tidy(prop.test(sum(bases_pass$number_of_bases), 
+                 sum(total_bases$max_length))) %>%
   select(conf.low:conf.high) 
 
+
 # Positions have at least one base with > 5% difference
-print("Positions with more than 5% difference")
 pass_filter <- consensus_diff %>%
   filter(pc_diff >= 5) %>%
   filter(quality_value > 1) %>%
-  filter(source == "pipeline") %>%
+  filter(source == "pipeline") 
+
+print("Positions with more than 5% difference")
+pass_filter %>%
   group_by(Pos, region_name) %>%
-  filter(pc_diff == max(pc_diff)) %>%
+  filter(Pos == max(Pos)) %>%
   group_by(region_name) %>%
   summarise(number_of_positions = n())
-pass_filter
 
-prop.test(sum(pass_filter$number_of_positions), 
-          sum(total_bases$max_length)) %>%
-  select(conf.low:conf.high)
+bases_pass <- pass_filter %>%
+  filter(base != "Gap") %>%
+  group_by(region_name) %>%
+  summarise(number_of_bases = n())
+
+tidy(prop.test(sum(bases_pass$number_of_bases), 
+               sum(total_bases$max_length))) %>%
+  select(conf.low:conf.high) 
 
 
 # Positions have at least one base with > 10% difference
-print("Positions with more than 10% difference")
 pass_filter <- consensus_diff %>%
   filter(pc_diff >= 10) %>%
   filter(quality_value > 1) %>%
-  filter(source == "pipeline") %>%
-  group_by(Pos, region_name) %>%
-  filter(pc_diff == max(pc_diff)) %>%
-  select(Pos:region_name, Cons, depth:pc_diff, -source, base) 
-pass_filter %>%
-  nrow()
+  filter(source == "pipeline") 
 
-prop.test(sum(pass_filter$number_of_positions), 
-          sum(total_bases$max_length)) %>%
-  select(conf.low:conf.high)
+print("Positions with more than 10% difference")
+pass_filter %>%
+  group_by(Pos, region_name) %>%
+  filter(Pos == max(Pos)) %>%
+  group_by(region_name) %>%
+  summarise(number_of_positions = n())
+
+bases_pass <- pass_filter %>%
+  filter(base != "Gap") %>%
+  group_by(region_name) %>%
+  summarise(number_of_bases = n())
+
+tidy(prop.test(sum(bases_pass$number_of_bases), 
+               sum(total_bases$max_length))) %>%
+  select(conf.low:conf.high) 
 
 consensus_diff %>%
   filter(pc_diff >= 10) %>%

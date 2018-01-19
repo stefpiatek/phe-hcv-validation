@@ -15,6 +15,7 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 library(ggplot2)
+library(broom)
 
 # set up ggplot theme and palettes 
 theme_custom <- function (base_size = 12, base_family = "") {
@@ -177,7 +178,7 @@ quality_values <- tmp_consensus_diff %>%
   gather(key = base, value = quality_value, starts_with("q")) %>%
   mutate(base = str_replace(base, "q", "")) %>%
   group_by(Pos, base, sample_name, region_name) %>%
-  slice(1) %>%
+  dplyr::slice(1) %>%
   ungroup()
 
 consensus_diff <- tmp_consensus_diff %>%
@@ -343,10 +344,16 @@ consensus_diff %>%
 ## Number of positions comparison
 
 ```{r filtered_comparison, echo=FALSE}
+
+
+# total number of bases
+total_bases <- consensus_qb %>%
+  group_by(region_name, sample_name) %>%
+  summarise(max_length = max(Pos) * 4)  # as 4 bases
+
 # Positions have at least less than 1% difference in base frequency
 print("Positions with less than 1% difference")
 consensus_diff %>%
-  filter(consensus_greater != "quasibam_sample") %>%
   filter(quality_value > 1) %>%
   filter(source == "consensus") %>%
   group_by(Pos, region_name) %>%
@@ -356,42 +363,78 @@ consensus_diff %>%
   summarise(number_of_positions = n())
 
 # Positions have at least one base with > 1% difference
-print("Positions with more than 1% difference")
-consensus_diff %>%
-  filter(consensus_greater != "quasibam_sample") %>%
+pass_filter <- consensus_diff %>%
   filter(pc_diff >= 1) %>%
   filter(quality_value > 1) %>%
-  filter(source == "consensus") %>%
+  filter(source == "consensus") 
+
+print("Positions with more than 1% difference")
+pass_filter %>%
   group_by(Pos, region_name) %>%
-  filter(pc_diff == max(pc_diff)) %>%
+  filter(Pos == max(Pos)) %>%
   group_by(region_name) %>%
   summarise(number_of_positions = n())
+
+bases_pass <- pass_filter %>%
+  filter(base != "Gap") %>%
+  group_by(region_name) %>%
+  summarise(number_of_bases = n())
+
+tidy(prop.test(sum(bases_pass$number_of_bases), 
+               sum(total_bases$max_length))) %>%
+    select(conf.low:conf.high) 
 
 # Positions have at least one base with > 5% difference
-print("Positions with more than 5% difference")
-consensus_diff %>%
-  filter(consensus_greater != "quasibam_sample") %>%
+pass_filter <- consensus_diff %>%
   filter(pc_diff >= 5) %>%
   filter(quality_value > 1) %>%
-  filter(source == "consensus") %>%
+  filter(source == "consensus") 
+
+print("Positions with more than 5% difference")
+pass_filter %>%
   group_by(Pos, region_name) %>%
-  filter(pc_diff == max(pc_diff)) %>%
+  filter(Pos == max(Pos)) %>%
   group_by(region_name) %>%
   summarise(number_of_positions = n())
 
+bases_pass <- pass_filter %>%
+  filter(base != "Gap") %>%
+  group_by(region_name) %>%
+  summarise(number_of_bases = n())
+
+  tidy(prop.test(sum(bases_pass$number_of_bases), 
+                 sum(total_bases$max_length))) %>%
+    select(conf.low:conf.high) 
+
 # Positions have at least one base with > 10% difference
-print("Positions with more than 10% difference")
-consensus_diff %>%
-  filter(consensus_greater != "quasibam_sample") %>%
+pass_filter <- consensus_diff %>%
   filter(pc_diff >= 10) %>%
   filter(quality_value > 1) %>%
-  filter(source == "consensus") %>%
+  filter(source == "consensus") 
+
+print("Positions with more than 10% difference")
+pass_filter %>%
+  group_by(Pos, region_name) %>%
+  filter(Pos == max(Pos)) %>%
+  group_by(region_name) %>%
+  summarise(number_of_positions = n())
+
+bases_pass <- pass_filter %>%
+  filter(base != "Gap") %>%
+  group_by(region_name) %>%
+  summarise(number_of_bases = n())
+
+tidy(prop.test(sum(bases_pass$number_of_bases), 
+               sum(total_bases$max_length))) %>%
+  select(conf.low:conf.high) 
+
+pass_filter %>%
   group_by(Pos, region_name) %>%
   filter(pc_diff == max(pc_diff)) %>%
   select(Pos:region_name, Cons, depth:pc_diff, -source, base) %>%
   ungroup() %>%
-  arrange(Pos, region_name)
-
+  arrange(Pos, sample_name, region_name) %>%
+  knitr::kable()
 
 ```
 
