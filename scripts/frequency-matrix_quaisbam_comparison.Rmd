@@ -1,10 +1,16 @@
 ---
-title: "Quasibam comparison"
+title: "Consensus frequency matrix compared with quasibam"
 author: "Stef Piatek"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: html_document
+params:
+  date_prefix: "170908"
 ---
+Script to compare the frequency matrix from the FASTA pileup to quasibam from the same consensus
 
+Example usage from command line:
+
+    Rscript -e "rmarkdown::render('scripts/frequency-matrix_quasibam_comparison.Rmd', params = list(pipeline = 'vicuna_bwa', date_prefix = '170908') 'html_document', '../reports/170908_frequency-matrix_quasibam.html')"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(Biostrings)  # bioconductor package
@@ -55,8 +61,11 @@ source(here("scripts", "helper_functions.R"))
 
 ## Load up samples and filter them to roi ----
 # get list of samples
+date_prefix <- params$date_prefix
+print(glue("Analysing data from {date_prefix}"))
+
 samples <- list.files(here("data")) %>%
-  str_extract("([0-9]{6}_[0-9]+)") %>%
+  str_extract(glue("({date_prefix}_[0-9]+)")) %>%
   unique() %>% 
   na.omit()
 
