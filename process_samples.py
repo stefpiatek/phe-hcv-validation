@@ -1,10 +1,29 @@
 import subprocess
+from argparse import ArgumentParser
 from glob import glob
 from os import getcwd
 
-prefix = "170908"
+"""
+Simple script to run through each sample and take from FASTA to quasibam
+
+At PHE need to load the following modules first
+
+module load anaconda/4.2.1_python3
+module load phe/quasi_bam/2-3
+module load samtools
+module load bwa
+"""
+
+
 directory = getcwd()
 
+parser = ArgumentParser(
+    description='Run all processing of FASTAs to create consensus, '
+                'frequency matrix and quasibams for comparison')
+
+parser.add_argument('date_prefix', help="Date prefix for samples in YYMMDD")
+args = parser.parse_args()
+prefix = args.date_prefix
 
 files = glob("{directory}/data/{prefix}_*_quasi.fas".format(
     directory=directory, prefix=prefix))
@@ -83,5 +102,3 @@ for sample_number in sample_numbers:
              prefix=prefix, sample_number=sample_number),
          "-f 0.001"],
         check=True)
-
-# Now need to analyse samples together, will do interactively
