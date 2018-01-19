@@ -1,9 +1,17 @@
 import subprocess
+from argparse import ArgumentParser
 from glob import glob
 from os import getcwd
 
-prefix = "170908"
 directory = getcwd()
+
+parser = ArgumentParser(
+    description='Run all processing of FASTAs to create consensus, '
+                'frequency matrix and quasibams for comparison')
+
+parser.add_argument('date_prefix', help="Date prefix for samples in YYMMDD")
+args = parser.parse_args()
+prefix = args.date_prefix
 
 
 files = glob("{directory}/data/{prefix}_*_quasi.fas".format(
@@ -83,5 +91,3 @@ for sample_number in sample_numbers:
              prefix=prefix, sample_number=sample_number),
          "-f 0.001"],
         check=True)
-
-# Now need to analyse samples together, will do interactively
