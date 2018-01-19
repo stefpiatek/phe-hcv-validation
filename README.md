@@ -18,9 +18,9 @@ FASTAs were made to simulate samples with different compositions. These have bee
 
 ## Testing
 
-Python unit tests were made for FASTA_conensus.py
+Python unit tests were made for FASTA_conensus.py. From the root of the project run:
 
-    `python -m pytest tests/`
+`python -m pytest tests/` or `pytest tests/`
 
 
 ## Requirements / versions used
