@@ -90,7 +90,7 @@ compensate_indel <- function(indel_table = NULL, ref_table = NULL, region = NULL
       # Add information to indel table (global variable)
       indel_tbl <<- roi_indel_table %>%
         filter(between(Pos, del_start[del_i], del_end[del_i])) %>%
-        select(Pos:Gap, sample_name:region_name) %>%
+        select(Pos:Gap, sample_name:region_name, Cons) %>%
         mutate(indel_type = "insertion") %>%
         bind_rows(indel_tbl)
       
