@@ -61,6 +61,12 @@ default_frequency = frequency(None, 0, 0, 0, 0, 0, 0, None)
 
 
 def get_base_frequency(position_dict, position):
+    """Make dictionary of base frequency for a single position
+
+    :param position_dict - count of each base for a position:
+    :param position - 1-indexed nucleotide position:
+    :returns base_frequency - dictionary of base frequencies:
+    """
     depth = sum(position_dict.values())
     # combine gaps to single format
     gap = 0
@@ -86,6 +92,13 @@ def get_base_frequency(position_dict, position):
 
 
 def make_frequency_matrix(sequence_dict):
+    """Makes list of base frequencies per position
+
+    - Skips any position where the maximum base is a '-'' or 'N'
+
+    :param sequence_dict - count of each base per position:
+    :returns frequency_matrix - list of dictionaries:
+    """
     frequency_matrix = []
     base_position = 1
     for position_dict in sequence_dict.values():
