@@ -3,3 +3,5 @@
 !.gitignore
 !.gitkeep
 data/*
+.Rproj.user
+*.html
