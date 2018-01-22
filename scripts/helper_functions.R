@@ -1,8 +1,8 @@
 library(Biostrings)  # bioconductor package
-library(readr)
 library(here)
 library(dplyr)
 library(stringr)
+library(readr)
 
 ## set up regions of interest ----
 #+/- 30 bp, unless this would cause overlap
@@ -16,7 +16,7 @@ padding = 30
 roi <- tibble(region_name =  c("NS3", "NS5A",        "NS5B"),
               start = c(        3420,  6258,           7602 + padding),
               end =   c(        5312,  7601 - padding, 9374)
-) %>%
+  ) %>%
   mutate(start = start - padding) %>%
   mutate(end = end + padding) %>%
   mutate(width = end - start + 1) %>%
