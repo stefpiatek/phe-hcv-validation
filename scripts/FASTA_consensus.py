@@ -56,6 +56,7 @@ def make_consensus(sequence_dict):
 
     return ''.join(consensus_list)
 
+
 frequency = namedtuple('base', 'Pos A C G T Gap Depth RefN')
 default_frequency = frequency(None, 0, 0, 0, 0, 0, 0, None)
 
@@ -112,6 +113,7 @@ def make_frequency_matrix(sequence_dict):
             base_position += 1
 
     return frequency_matrix
+
 
 if __name__ == '__main__':
     # set up argument parser
