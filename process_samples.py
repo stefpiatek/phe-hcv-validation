@@ -23,11 +23,40 @@ parser = ArgumentParser(
     description='Run all processing of FASTAs to create consensus, '
                 'frequency matrix and quasibams for comparison')
 parser.add_argument('date_prefix', help="Date prefix for samples in YYMMDD")
-parser.add_argument('-rh', '--remove-human',
+parser.add_argument('--remove-human',
                     help='Carry out pipeline step of removing human reads',
                     action='store_true')
+parser.add_argument('-r', '--reports',
+                    help='Render Rmd reports only ',
+                    action='store_true')
+
 args = parser.parse_args()
 prefix = args.date_prefix
+
+if args.reports:
+    cmd = ("Rscript -e \"rmarkdown::render("
+           "'scripts/frequency-matrix_quaisbam_comparison.Rmd', "
+           "params = list(date_prefix = '{prefix}'), "
+           "'html_document', "
+           "'../reports/{prefix}_frequency-matrix_quasibam.html')\""
+           )
+    subprocess.run(cmd.format(prefix=prefix),
+                   shell=True, check=True)
+    for pipeline in ["vicuna_bwa", "vicuna_smalt", "iva_bwa", "iva_smalt"]:
+
+        cmd = ("Rscript -e \"rmarkdown::render("
+               "'scripts/quasibam-pipeline_comparison.Rmd', "
+               "params = list(pipeline = '{pipeline}', "
+               "date_prefix = '{prefix}'), "
+               "'html_document', "
+               "'../reports/{prefix}_{output_pipeline}_report.html')\""
+               )
+        subprocess.run(
+            cmd.format(prefix=prefix,
+                       pipeline=pipeline,
+                       output_pipeline=pipeline.replace("_", "-")),
+            shell=True, check=True)
+    exit()
 
 files = glob("{directory}/data/{prefix}_*_quasi.fas".format(
     directory=directory, prefix=prefix))
@@ -63,7 +92,7 @@ for sample_number in sample_numbers:
         # Copied human filtering out from basic pipeline script
         # Kept the same to avoid changing the outcome of filtering
         print("-- Filtering human reads for sample {sample_number}".format(
-            sample_number=sample_number)) 
+            sample_number=sample_number))
         # in awk command,  double { to avoid string formatting
         cmd = ("smalt map -x -y 0.5 -i 500 -n 8 "
                "{directory}/hg38/hg38_hcv_k15_s3 "
@@ -72,12 +101,12 @@ for sample_number in sample_numbers:
                "> {path_prefix}_filtered.sam")
         subprocess.run(
             cmd.format(
-                directory=directory, 
+                directory=directory,
                 path_prefix=path_prefix),
             shell=True, check=True)
-        
+
         print("-- convert filtered sam to fastqs for # {sample_number}".format(
-            sample_number=sample_number)) 
+            sample_number=sample_number))
         cmd = ("samtools view -bShf 64 {path_prefix}_filtered.sam"
                "| samtools bam2fq - > {path_prefix}_R1_filtered.fq")
         subprocess.run(
