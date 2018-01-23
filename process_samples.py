@@ -12,6 +12,8 @@ module load anaconda/4.2.1_python3
 module load phe/quasi_bam/2-3
 module load samtools
 module load bwa
+module load smalt/0.7.6
+
 """
 
 
@@ -20,8 +22,10 @@ directory = getcwd()
 parser = ArgumentParser(
     description='Run all processing of FASTAs to create consensus, '
                 'frequency matrix and quasibams for comparison')
-
 parser.add_argument('date_prefix', help="Date prefix for samples in YYMMDD")
+parser.add_argument('-rh', '--remove-human',
+                    help='Carry out pipeline step of removing human reads',
+                    action='store_true')
 args = parser.parse_args()
 prefix = args.date_prefix
 
@@ -55,6 +59,39 @@ for sample_number in sample_numbers:
                     path_prefix + "_quasi_consensus.fas"],
                    check=True)
 
+    if args.remove_human:
+        # Copied human filtering out from basic pipeline script
+        # Kept the same to avoid changing the outcome of filtering
+        print("-- Filtering human reads for sample {sample_number}".format(
+            sample_number=sample_number)) 
+        # in awk command,  double { to avoid string formatting
+        cmd = ("smalt map -x -y 0.5 -i 500 -n 8 "
+               "{directory}/hg38/hg38_hcv_k15_s3 "
+               "{path_prefix}_R1.fq {path_prefix}_R2.fq "
+               "| awk '{{if ($3 !~ /^chr/ && $7 !~ /^chr/) print $0}}' "
+               "> {path_prefix}_filtered.sam")
+        subprocess.run(
+            cmd.format(
+                directory=directory, 
+                path_prefix=path_prefix),
+            shell=True, check=True)
+        
+        print("-- convert filtered sam to fastqs for # {sample_number}".format(
+            sample_number=sample_number)) 
+        cmd = ("samtools view -bShf 64 {path_prefix}_filtered.sam"
+               "| samtools bam2fq - > {path_prefix}_R1_filtered.fq")
+        subprocess.run(
+            cmd.format(path_prefix=path_prefix),
+            shell=True, check=True)
+        cmd = ("samtools view -bShf 128 {path_prefix}_filtered.sam"
+               "| samtools bam2fq - > {path_prefix}_R2_filtered.fq")
+        subprocess.run(
+            cmd.format(path_prefix=path_prefix),
+            shell=True, check=True)
+        fastq_suffix = "_filtered.fq"
+    else:
+        fastq_suffix = ".fq"
+
     print("-- BWA mem for sample {sample_number}".format(
         sample_number=sample_number))
 
@@ -62,8 +99,8 @@ for sample_number in sample_numbers:
     with open(output_filename, "w") as output_file:
         subprocess.run(["bwa", "mem",
                         path_prefix + "_quasi_consensus.fas",
-                        path_prefix + "_quasi.fas_R1.fq",
-                        path_prefix + "_quasi.fas_R2.fq"],
+                        path_prefix + "_R1" + fastq_suffix,
+                        path_prefix + "_R2" + fastq_suffix],
                        stdout=output_file,
                        check=True)
 
