@@ -434,30 +434,19 @@ total_bases_filtered <- consensus_qb %>%
   summarise(max_length = max(Pos) * 4)  # as 4 bases
 
 analyse_threshold(1, "pipeline")
-position_diff_export
-conf_int_export
+position_diff_export %>% knitr::kable()
+conf_int_export %>% knitr::kable()
 
 analyse_threshold(5, "pipeline")
-position_diff_export
-conf_int_export
+position_diff_export %>% knitr::kable()
+conf_int_export %>% knitr::kable()
 
 analyse_threshold(10, "pipeline")
-position_diff_export
-conf_int_export
-
+position_diff_export %>% knitr::kable()
+conf_int_export %>% knitr::kable()
 
 pass_filter %>%
-  group_by(Pos, region_name) %>%
-  filter(pc_diff == max(pc_diff)) %>%
-  select(Pos:region_name, Cons, depth:pc_diff, -source, base) %>%
-  ungroup() %>%
-  arrange(Pos, sample_name, region_name) %>%
-  knitr::kable()
-consensus_diff %>%
   filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
-  filter(pc_diff >= 10) %>%
-  filter(quality_value > 1) %>%
-  filter(source == "pipeline") %>%
   group_by(Pos, region_name) %>%
   filter(pc_diff == max(pc_diff)) %>%
   select(Pos:region_name, Cons, depth:pc_diff, -source, base) %>%

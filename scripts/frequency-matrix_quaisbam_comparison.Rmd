@@ -2,7 +2,9 @@
 title: "Consensus frequency matrix compared with quasibam"
 author: "Stef Piatek"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
-output: html_document
+output: 
+  html_document:
+    keep_md: TRUE
 params:
   date_prefix: "170908"
 ---
@@ -375,19 +377,20 @@ total_bases_filtered <- consensus_qb %>%
 
 
 analyse_threshold(1, "consensus")
-position_diff_export
-conf_int_export
+position_diff_export %>% knitr::kable()
+conf_int_export %>% knitr::kable()
 
 analyse_threshold(5, "consensus")
-position_diff_export
-conf_int_export
+position_diff_export %>% knitr::kable()
+conf_int_export %>% knitr::kable()
 
 analyse_threshold(10, "consensus")
-position_diff_export
-conf_int_export
+position_diff_export %>% knitr::kable()
+conf_int_export %>% knitr::kable()
 
 
 pass_filter %>%
+  filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
   group_by(Pos, region_name) %>%
   filter(pc_diff == max(pc_diff)) %>%
   select(Pos:region_name, Cons, depth:pc_diff, -source, base) %>%

@@ -131,14 +131,14 @@ analyse_threshold <- function(quality_threshold = 1, source_name = "consensus"){
     group_by(Pos, region_name) %>%
     filter(Pos == max(Pos)) %>%
     group_by(region_name) %>%
-    summarise(positions = n()) 
+    summarise(diff_positions = n()) 
   
   position_diff_export <<- pass_filter %>%
     filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
     group_by(Pos, region_name) %>%
     filter(Pos == max(Pos)) %>%
     group_by(region_name) %>%
-    summarise(filtered_positions = n()) %>%
+    summarise(filtered_diff_positions = n()) %>%
     full_join(all_positions, by = "region_name") 
   
   
