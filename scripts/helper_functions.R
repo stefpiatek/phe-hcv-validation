@@ -117,3 +117,53 @@ compensate_for_indels <- function(indel_table = NULL, sample = "170908_18", ref_
   
   return(output_table)
 }
+
+## printing summary information for filtered differences ----
+
+analyse_threshold <- function(quality_threshold = 1, source_name = "consensus"){
+  pass_filter <<- consensus_diff %>%
+    filter(pc_diff >= quality_threshold) %>%
+    filter(quality_value > 1) %>%
+    filter(source == source_name) 
+  
+  print(glue("Positions with >= {quality_threshold}% difference"))
+  all_positions <- pass_filter %>%
+    group_by(Pos, region_name) %>%
+    filter(Pos == max(Pos)) %>%
+    group_by(region_name) %>%
+    summarise(positions = n()) 
+  
+  position_diff_export <<- pass_filter %>%
+    filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
+    group_by(Pos, region_name) %>%
+    filter(Pos == max(Pos)) %>%
+    group_by(region_name) %>%
+    summarise(filtered_positions = n()) %>%
+    full_join(all_positions, by = "region_name") 
+  
+  
+  bases_pass <- pass_filter %>%
+    filter(base != "Gap") %>%
+    group_by(region_name) %>%
+    summarise(bases = n())
+  
+  conf_int <- tidy(prop.test(sum(bases_pass$bases), 
+                             sum(total_bases$max_length))) %>%
+    select(conf.low:conf.high) %>%
+    mutate(filtering = "All bases") %>%
+    select(filtering, conf.low:conf.high)
+  
+  bases_pass_filtered <- pass_filter %>%
+    filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
+    filter(base != "Gap") %>%
+    group_by(region_name) %>%
+    summarise(bases = n())
+  
+  conf_int_export <<- tidy(prop.test(sum(bases_pass_filtered$bases), 
+                                     sum(total_bases_filtered$max_length))) %>%
+    select(conf.low:conf.high) %>%
+    mutate(filtering = "remove 171009_10:12") %>%
+    select(filtering, conf.low:conf.high) %>%
+    bind_rows(conf_int) 
+}
+

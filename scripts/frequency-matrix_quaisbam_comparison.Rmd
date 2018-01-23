@@ -52,7 +52,8 @@ palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 - FASTQs have been generated from these FASTAs, mapped back to the consensus FASTA sequence and then quasi_bam run
 - This document compares the consensus quasibam output to the pipeline.
 
-    - The NS3, NS5A and NS5B regions have been extracted from the files, discarding       everything else
+    - The NS3, NS5A and NS5B regions have been extracted from the files, discarding       
+      everything else
     
 ```{r load_data, warning=FALSE, echo=FALSE, message=FALSE}
 # Load helper scripts and hcv reference information
@@ -106,7 +107,6 @@ for(item in 2:length(samples)){
 
 ## Discordant basecalls
 
-- Only discordant basecalls is where multiple bases could be called, or there is a gap, likely due to low depth
 
 ```{r discordant_basecalls, echo=FALSE}
 
@@ -151,8 +151,6 @@ discordant_basecalls %>%
 tmp_consensus_diff <- consensus_fm %>%
   full_join(consensus_qb, by=c("Pos", "sample_name", "region_name", "RefN"), 
             suffix=c("_consensus", "_quasibam")) %>%
-  # keep only rows with 200 read depth -- is this reasonable?
-  filter(Depth_quasibam >= 200) %>%
   # Keep only quasibam depth as depth
   mutate(depth = Depth_quasibam) %>%
   select(- starts_with("Depth_")) %>%
@@ -218,20 +216,22 @@ rm("tmp_consensus_diff")
 
 ```{r explore_data_plotting}
 
-## Bases with coverage of 200 ----
+## Base coverage above 100 ----
 consensus_qb %>%
   group_by(Pos, region_name) %>%
+  filter(Depth > 100) %>%
   summarise(percent_covered = 100 * n() / length(samples)) %>%
   arrange(region_name) %>%
   ggplot() +
-  geom_point(aes(x = Pos, y = percent_covered, colour = '>= 200')) + 
+  geom_point(aes(x = Pos, y = percent_covered, colour = '>= 100')) + 
   scale_x_continuous(limits=c(1, max(consensus_fm$Pos))) +
   scale_colour_manual(values=palette_5) +
-  facet_wrap(~region_name) + 
+  facet_wrap(~region_name, scales = "free_x") + 
   labs(x = "Nucleotide position",
        y = "Percent of samples",
-       title = "Percent of samples with depth above 200",
+       title = "Percent of samples with depth above 100",
        colour = "Depth")
+
 
 # double check no missed rows
 consensus_qb %>%
@@ -240,37 +240,49 @@ consensus_qb %>%
   group_by(region_name) %>%
   arrange(region_name) %>%
   filter(lag(Pos) != Pos - 1)
-# coverage looks good
 
 ## Distribution of frequency differences per base ----
 consensus_diff %>%
   filter(consensus_greater != "quasibam_sample") %>%
-  mutate(pc_diff = pc_diff + 0.1) %>%
-  ggplot(aes(x=pc_diff, fill=base)) +
+  filter(pc_diff >= 0.1) %>%  ggplot(aes(x=pc_diff, fill=base)) +
   geom_histogram(bins=40) +
   scale_x_log10() + 
   scale_y_log10() + 
   facet_grid(consensus_greater ~ region_name) + 
   scale_fill_manual(values=palette_5) +
-  labs(x = "Frequency difference (with 0.1% added)",
+  labs(x = "Frequency difference",
        y = "Count",
        title = "Differences compared to consensus")
-# NS5A har most errors, with lower base frequency in matrix compared to quasibam
-# Generally increased base frequency in matrix compared to quasibam
+
 
 ## Distribution of frequency differences per sample ----
 consensus_diff %>%
   filter(consensus_greater != "quasibam_sample") %>%
-  mutate(pc_diff = pc_diff + 0.1) %>%
-  ggplot(aes(x=pc_diff, fill=sample_name)) +
+  filter(pc_diff >= 0.1) %>%
+  ggplot(aes(x=pc_diff, fill=region_name)) +
   geom_histogram(bins=40) +
   scale_x_log10() + 
   scale_y_log10() + 
+  scale_fill_manual(values=palette_5) +
   facet_wrap(~ sample_name) + 
-  labs(x = "Frequency difference (with 0.1% added)",
+  labs(x = "Frequency difference",
        y = "Count",
-       title = "Differences compared to consensus")
-# sample 13 and 18 are partcularily bad for large differences
+       fill = "Region name",
+       title = "Differences compared to consensus per sample")
+
+## Per position frequency differences ----
+consensus_diff %>%
+  filter(consensus_greater != "quasibam_sample") %>%
+  filter(pc_diff >= 1) %>%
+  ggplot(aes(x=Pos, fill=region_name)) +
+  geom_histogram(bins=40) +
+  scale_fill_manual(values=palette_5) +
+  facet_wrap(~ sample_name, scales = "free_y") + 
+  labs(x = "Nucleotide Position",
+       y = "Count",
+       fill = "Region name",
+       title = "Number of differences >1% by position") +
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
 
 ## proportion of samples with base difference at position ----
 consensus_diff %>%
@@ -289,7 +301,6 @@ ggplot(aes(x = max_pc_diff, y = gt_1_pc, colour = base, alpha = 0.2)) +
   labs(x = "Maximum difference in base frequency",
        y = "Percent of samples",
        title = "Percent of samples with >1% difference in base frequency")
-# NS5A has most common large differences
 
 ## Distribution of differences greater than 1% by reference position ----
 consensus_diff %>%
@@ -298,15 +309,14 @@ consensus_diff %>%
   filter(consensus_greater != "quasibam_sample") %>%
   ggplot() +
   geom_histogram(bins=40, aes(x=Pos, fill=base)) +
-  facet_grid(consensus_greater ~ region_name) + 
+  facet_grid(consensus_greater ~ region_name, scales = "free_x") + 
   scale_fill_manual(values=palette_5) +
   labs(x = "Nucleotide position",
        y = "Count",
        title = "Differences by position, over 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-# 5' end of NS5A has a large number of frequency differences, this may be inflated due to each base being different in one position
 
-## Read depth of reads with frequency differences greater than 1%
+## Read depth of reads with frequency differences greater than 1% ----
 consensus_diff %>%
   filter(consensus_greater != "quasibam_sample") %>%
   filter(pc_diff >= 1) %>%
@@ -318,12 +328,10 @@ consensus_diff %>%
        y = "Count",
        title = "Read depth of frequency differences >= 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-# most differences at base depth < 1200
 
 
 ## Per sample distribution by nucleotide position
 consensus_diff %>%
-  filter(consensus_greater != "quasibam_sample") %>%
   mutate(greater_1_pc = if_else(pc_diff >= 1, 1, 0)) %>% 
   filter(quality_value > 1) %>%
   filter(source == "consensus") %>%
@@ -344,98 +352,40 @@ consensus_diff %>%
        y = "Maximum percent difference per base",
        colour = "Percent bases\nabove 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-# As before, sample 13 and 18 look particularily bad
-# Also sample 3 has rare but very large differences in base frequency
+
 
 
 ```
 
 ## Number of positions comparison
 
+- for 171009, samples 10, 11 and 12 have been filtered out
+
 ```{r filtered_comparison, echo=FALSE}
 
 
-# total number of bases
 total_bases <- consensus_qb %>%
   group_by(region_name, sample_name) %>%
   summarise(max_length = max(Pos) * 4)  # as 4 bases
 
-# Positions have at least less than 1% difference in base frequency
-print("Positions with less than 1% difference")
-consensus_diff %>%
-  filter(quality_value > 1) %>%
-  filter(source == "consensus") %>%
-  group_by(Pos, region_name) %>%
-  summarise(max_diff = max(pc_diff)) %>%
-  filter(max_diff < 1) %>%
-  group_by(region_name)  %>%
-  summarise(number_of_positions = n())
+total_bases_filtered <- consensus_qb %>%
+  filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
+  group_by(region_name, sample_name) %>%
+  summarise(max_length = max(Pos) * 4)  # as 4 bases
 
-# Positions have at least one base with > 1% difference
-pass_filter <- consensus_diff %>%
-  filter(pc_diff >= 1) %>%
-  filter(quality_value > 1) %>%
-  filter(source == "consensus") 
 
-print("Positions with more than 1% difference")
-pass_filter %>%
-  group_by(Pos, region_name) %>%
-  filter(Pos == max(Pos)) %>%
-  group_by(region_name) %>%
-  summarise(number_of_positions = n())
+analyse_threshold(1, "consensus")
+position_diff_export
+conf_int_export
 
-bases_pass <- pass_filter %>%
-  filter(base != "Gap") %>%
-  group_by(region_name) %>%
-  summarise(number_of_bases = n())
+analyse_threshold(5, "consensus")
+position_diff_export
+conf_int_export
 
-tidy(prop.test(sum(bases_pass$number_of_bases), 
-               sum(total_bases$max_length))) %>%
-    select(conf.low:conf.high) 
+analyse_threshold(10, "consensus")
+position_diff_export
+conf_int_export
 
-# Positions have at least one base with > 5% difference
-pass_filter <- consensus_diff %>%
-  filter(pc_diff >= 5) %>%
-  filter(quality_value > 1) %>%
-  filter(source == "consensus") 
-
-print("Positions with more than 5% difference")
-pass_filter %>%
-  group_by(Pos, region_name) %>%
-  filter(Pos == max(Pos)) %>%
-  group_by(region_name) %>%
-  summarise(number_of_positions = n())
-
-bases_pass <- pass_filter %>%
-  filter(base != "Gap") %>%
-  group_by(region_name) %>%
-  summarise(number_of_bases = n())
-
-  tidy(prop.test(sum(bases_pass$number_of_bases), 
-                 sum(total_bases$max_length))) %>%
-    select(conf.low:conf.high) 
-
-# Positions have at least one base with > 10% difference
-pass_filter <- consensus_diff %>%
-  filter(pc_diff >= 10) %>%
-  filter(quality_value > 1) %>%
-  filter(source == "consensus") 
-
-print("Positions with more than 10% difference")
-pass_filter %>%
-  group_by(Pos, region_name) %>%
-  filter(Pos == max(Pos)) %>%
-  group_by(region_name) %>%
-  summarise(number_of_positions = n())
-
-bases_pass <- pass_filter %>%
-  filter(base != "Gap") %>%
-  group_by(region_name) %>%
-  summarise(number_of_bases = n())
-
-tidy(prop.test(sum(bases_pass$number_of_bases), 
-               sum(total_bases$max_length))) %>%
-  select(conf.low:conf.high) 
 
 pass_filter %>%
   group_by(Pos, region_name) %>%
