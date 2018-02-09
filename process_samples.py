@@ -27,11 +27,16 @@ parser.add_argument('--remove-human',
                     help='Carry out pipeline step of removing human reads',
                     action='store_true')
 parser.add_argument('-r', '--reports',
-                    help='Render Rmd reports only ',
+                    help='Render Rmd reports only',
                     action='store_true')
+parser.add_argument('-fm', '--fastq-middle', default="_",
+                    help=("string between 'YYMMDD_sample_number' and '.fq'. "
+                          " e.g. '_quasi.fas_'"))
 
 args = parser.parse_args()
 prefix = args.date_prefix
+fastq_middle = args.fastq_middle
+
 
 if args.reports:
     cmd = ("Rscript -e \"rmarkdown::render("
@@ -108,14 +113,16 @@ for sample_number in sample_numbers:
         print("-- convert filtered sam to fastqs for # {sample_number}".format(
             sample_number=sample_number))
         cmd = ("samtools view -bShf 64 {path_prefix}_filtered.sam"
-               "| samtools bam2fq - > {path_prefix}_R1_filtered.fq")
+               "| samtools bam2fq - > "
+               "{path_prefix}{fastq_middle}R1_filtered.fq")
         subprocess.run(
-            cmd.format(path_prefix=path_prefix),
+            cmd.format(path_prefix=path_prefix, fastq_middle=fastq_middle),
             shell=True, check=True)
         cmd = ("samtools view -bShf 128 {path_prefix}_filtered.sam"
-               "| samtools bam2fq - > {path_prefix}_R2_filtered.fq")
+               "| samtools bam2fq - > "
+               "{path_prefix}{fastq_middle}R2_filtered.fq")
         subprocess.run(
-            cmd.format(path_prefix=path_prefix),
+            cmd.format(path_prefix=path_prefix, fastq_middle=fastq_middle),
             shell=True, check=True)
         fastq_suffix = "_filtered.fq"
     else:
@@ -128,8 +135,8 @@ for sample_number in sample_numbers:
     with open(output_filename, "w") as output_file:
         subprocess.run(["bwa", "mem",
                         path_prefix + "_quasi_consensus.fas",
-                        path_prefix + "_R1" + fastq_suffix,
-                        path_prefix + "_R2" + fastq_suffix],
+                        path_prefix + fastq_middle + "R1" + fastq_suffix,
+                        path_prefix + fastq_middle + "R2" + fastq_suffix],
                        stdout=output_file,
                        check=True)
 
@@ -152,7 +159,6 @@ for sample_number in sample_numbers:
     print("-- Indexing bam for sample {sample_number}".format(
         sample_number=sample_number))
     subprocess.run(["samtools", "index",
-                    path_prefix + "_quasi.bam",
                     path_prefix + "_quasi_sorted.bam"],
                    check=True)
 
