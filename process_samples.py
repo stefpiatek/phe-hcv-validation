@@ -13,7 +13,7 @@ module load phe/quasi_bam/2-3
 module load samtools
 module load bwa
 module load smalt/0.7.6
-
+module load blast+/2.2.27 
 """
 
 
@@ -32,11 +32,15 @@ parser.add_argument('-r', '--reports',
 parser.add_argument('-fm', '--fastq-middle', default="_",
                     help=("string between 'YYMMDD_sample_number' and '.fq'. "
                           " e.g. '_quasi.fas_'"))
+parser.add_argument('--consensus-gap', action='store_true',
+                    help=("Carry out steps to test whether gaps in consensus "
+                          "contigs are merged from pipeline steps"))
 
 args = parser.parse_args()
 prefix = args.date_prefix
 fastq_middle = args.fastq_middle
 
+## Rmd reports only --
 
 if args.reports:
     cmd = ("Rscript -e \"rmarkdown::render("
@@ -63,11 +67,21 @@ if args.reports:
             shell=True, check=True)
     exit()
 
+## Processing of files from fasta + fq onwards --
+
 files = glob("{directory}/data/{prefix}_*_quasi.fas".format(
     directory=directory, prefix=prefix))
 
 sample_numbers = [file.split("{}_".format(prefix))[1].split("_")[0]
                   for file in files]
+
+if args.consensus_gap:
+    # Pretty messy conversion of bash script so tucked away in 
+    # another file
+    from scripts import consensus_gap
+    # might be worth refactoring this to run as a subprocess and 
+    # pass the new sample prefix?
+    exit()
 
 
 # run all data processing
@@ -80,6 +94,7 @@ for sample_number in sample_numbers:
 
     print("-- Running FASTQ_consensus for sample {sample_number}".format(
         sample_number=sample_number))
+
     subprocess.run([
         "python3",
         "{directory}/scripts/FASTA_consensus.py".format(
@@ -100,7 +115,7 @@ for sample_number in sample_numbers:
             sample_number=sample_number))
         # in awk command,  double { to avoid string formatting
         cmd = ("smalt map -x -y 0.5 -i 500 -n 8 "
-               "{directory}/hg38/hg38_hcv_k15_s3 "
+               "{directory}/pipeline-resources/hg38/hg38_hcv_k15_s3 "
                "{path_prefix}_R1.fq {path_prefix}_R2.fq "
                "| awk '{{if ($3 !~ /^chr/ && $7 !~ /^chr/) print $0}}' "
                "> {path_prefix}_filtered.sam")

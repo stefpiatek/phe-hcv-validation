@@ -121,8 +121,11 @@ if __name__ == '__main__':
         description='Convert FASTAs in one file to a consensus FASTA\n'
                     'Output file made in the same directory as the input')
     parser.add_argument('input_file')
-    parser.add_argument('-g', '--gap',
-                        help='Insert a gap into consensus sequence')
+    parser.add_argument('-g', '--gap', 
+                        help="Insert a gap into consensus sequence")
+    parser.add_argument('--gap-sample', default="180212_1",
+                        help=("Insert a gap into consensus sequence "
+                              "using the given sample name"))
     args = parser.parse_args()
     if args.gap:
         consensus_gap = int(args.gap)
@@ -149,10 +152,12 @@ if __name__ == '__main__':
                 output.write(">consensus\n")
                 output.write(consensus)
         else:
-            output.write(">180212_1_quasi_consensus.1\n")
+            output.write(">{sample}_quasi_consensus.1\n".format(
+                sample=args.gap_sample))
             output.write(consensus[:5000])
             output.write("\n")
-            output.write(">180212_1_quasi_consensus.2\n")
+            output.write(">{sample}_quasi_consensus.2\n".format(
+                sample=args.gap_sample))
             output.write(consensus[5000 + consensus_gap:])
         output.write("\n")
     # write frequency matrix
