@@ -145,14 +145,14 @@ if __name__ == '__main__':
     # write consensus FASTA
     with open(consensus_out_file, "w") as output:
         if consensus_gap is None:
-            # No gap added so write entire file
-            output.write(">consensus\n")
-            output.write(consensus)
+                # No gap added so write entire file
+                output.write(">consensus\n")
+                output.write(consensus)
         else:
-            output.write(">consensus1\n")
+            output.write(">180212_1_quasi_consensus.1\n")
             output.write(consensus[:5000])
             output.write("\n")
-            output.write(">consensus2\n")
+            output.write(">180212_1_quasi_consensus.2\n")
             output.write(consensus[5000 + consensus_gap:])
         output.write("\n")
     # write frequency matrix
