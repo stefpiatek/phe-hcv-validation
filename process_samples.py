@@ -13,9 +13,8 @@ module load phe/quasi_bam/2-3
 module load samtools
 module load bwa
 module load smalt/0.7.6
-module load blast+/2.2.27 
+module load blast+/2.2.27
 """
-
 
 directory = getcwd()
 
@@ -40,7 +39,7 @@ args = parser.parse_args()
 prefix = args.date_prefix
 fastq_middle = args.fastq_middle
 
-## Rmd reports only --
+# Rmd reports only --
 
 if args.reports:
     cmd = ("Rscript -e \"rmarkdown::render("
@@ -67,7 +66,7 @@ if args.reports:
             shell=True, check=True)
     exit()
 
-## Processing of files from fasta + fq onwards --
+# Processing of files from fasta + fq onwards --
 
 files = glob("{directory}/data/{prefix}_*_quasi.fas".format(
     directory=directory, prefix=prefix))
@@ -76,10 +75,10 @@ sample_numbers = [file.split("{}_".format(prefix))[1].split("_")[0]
                   for file in files]
 
 if args.consensus_gap:
-    # Pretty messy conversion of bash script so tucked away in 
+    # Pretty messy conversion of bash script so tucked away in
     # another file
     from scripts import consensus_gap
-    # might be worth refactoring this to run as a subprocess and 
+    # might be worth refactoring this to run as a subprocess and
     # pass the new sample prefix?
     exit()
 

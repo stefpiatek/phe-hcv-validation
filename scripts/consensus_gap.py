@@ -32,7 +32,7 @@ def align_and_pileup(align_suffix, bam_suffix):
                         sample_prefix + bam_suffix.replace(".bam", ".sam")],
                        stdout=output_file,
                        check=True)
-    
+
     subprocess.run(["samtools", "sort", "-f",
                     sample_prefix + bam_suffix,
                     sample_prefix + bam_suffix.replace(".bam", "sorted.bam")],
@@ -53,7 +53,7 @@ def align_and_pileup(align_suffix, bam_suffix):
             stdout=output_file)
 
     cmd = ("awk {{'print $1\"\t\"$2\"\t\"$3\"\t\"$4'}} "
-           "{sample_prefix}{pile_suff} > " 
+           "{sample_prefix}{pile_suff} > "
            "{sample_prefix}{fake_pile}")
 
     subprocess.run(
@@ -77,8 +77,8 @@ sample_in = "{directory}/data/170908_1_quasi.fas".format(
 
 
 # iterate through
-for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7], 
-                              [0, 50, 100, 200, 400, 800, 1600]):  
+for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
+                              [0, 50, 100, 200, 400, 800, 1600]):
     sample_folder = dirname(
         "{directory}/data/gap_files/{prefix}_{sample_number}/".format(
             directory=directory,
@@ -94,7 +94,7 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
                  prefix=prefix,
                  sample_number=sample_number)
     resource_prefix = ("{directory}/pipeline-resources/"
-        ).format(directory=directory)
+                       ).format(directory=directory)
 
     subprocess.run(["cp", sample_in, sample_prefix + "_quasi.fas"],
                    check=True)
@@ -107,20 +107,20 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
                    check=True)
 
     print("-- Running FASTQ_consensus for sample {sample_number}".format(
-    sample_number=sample_number))
+        sample_number=sample_number))
 
     subprocess.run([
         "python3",
         "{directory}/scripts/FASTA_consensus.py".format(
             directory=directory),
-        sample_prefix + "_quasi.fas", 
+        sample_prefix + "_quasi.fas",
         "-g {gap}".format(gap=gap),
         "--gap-sample", "180212_{sample_number}".format(
             sample_number=sample_number)],
         check=True)
 
     print("-- Running lastz for sample {sample_number}".format(
-    sample_number=sample_number))
+        sample_number=sample_number))
 
     output_filename = sample_prefix + "_contigs.lastz"
     with open(output_filename, "w") as output_file:
@@ -128,9 +128,9 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
             [resource_prefix + "lastz-distrib/bin/lastz",
              sample_prefix + "_quasi_consensus.fas[multiple]",
              resource_prefix + "hcv.fasta",
-             "--ambiguous=iupac", 
+             "--ambiguous=iupac",
              "--format=GENERAL"],
-            stdout=output_file, 
+            stdout=output_file,
             check=True)
 
     print("-- Analyzing lastz for sample {sample_number}".format(
@@ -151,9 +151,9 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
         subprocess.run(
             [resource_prefix + "lastz-distrib/bin/lastz",
              sample_prefix + "_ref.fas",
-             sample_prefix + "_quasi_consensus.fas", 
+             sample_prefix + "_quasi_consensus.fas",
              "--ambiguous=iupac"],
-            stdout=output_file, 
+            stdout=output_file,
             check=True)
 
     print("-- Final lastz analysis for sample {sample_number}".format(
@@ -169,7 +169,7 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
          "-log_file=" + sample_prefix + "_lastz_analyser.log"],
         check=True)
 
-    align_and_pileup(align_suffix="_quasi_consensus.fas", 
+    align_and_pileup(align_suffix="_quasi_consensus.fas",
                      bam_suffix="_contigs.bam")
 
     print("-- Running genome maker for {sample_number}".format(
@@ -187,9 +187,9 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
         check=True)
 
     print(("-- Iteration 1: consensus from draft genome: {sample_number}"
-        ).format(sample_number=sample_number))
+           ).format(sample_number=sample_number))
 
-    align_and_pileup(align_suffix="_genome.fas", 
+    align_and_pileup(align_suffix="_genome.fas",
                      bam_suffix="_genome.bam")
 
     print("-- Iteration 1: running Cons_mv for {sample_number}".format(
@@ -198,14 +198,14 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
         ["perl", "-w", "-s",
          resource_prefix + "cons_mv.pl",
          "-reference_fasta=" + sample_prefix + "_genome.fas",
-         "-mpileup=" + sample_prefix + "_genome.mpileup", 
+         "-mpileup=" + sample_prefix + "_genome.mpileup",
          "-mv_freq_cutoff=0.01",
          "-mv_overall_depth_cutoff=100",
          "-mv_variant_depth_cutoff=20",
          "-cons_depth_cutoff=80",
-         "-sliding_window_size=300", 
+         "-sliding_window_size=300",
          "-consensus_out=" + sample_prefix + "_consensus1_preNcut.fas",
-         "-mv_out=" + sample_prefix +"_genome.fas.mv",
+         "-mv_out=" + sample_prefix + "_genome.fas.mv",
          "-base_freq_out=" + sample_prefix + "_genome.fas.basefreqs.tsv"],
         check=True)
 
@@ -220,9 +220,9 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
             stdout=output_file)
 
     print(("-- Iteration 2: consensus from draft genome: {sample_number}"
-        ).format(sample_number=sample_number))
+           ).format(sample_number=sample_number))
 
-    align_and_pileup(align_suffix="_consensus1.fas", 
+    align_and_pileup(align_suffix="_consensus1.fas",
                      bam_suffix="_consensus1.bam")
 
     print("-- Iteration 2: running Cons_mv for {sample_number}".format(
@@ -231,14 +231,14 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
         ["perl", "-w", "-s",
          resource_prefix + "cons_mv.pl",
          "-reference_fasta=" + sample_prefix + "_consensus1.fas",
-         "-mpileup=" + sample_prefix + "_consensus1.mpileup", 
+         "-mpileup=" + sample_prefix + "_consensus1.mpileup",
          "-mv_freq_cutoff=0.01",
          "-mv_overall_depth_cutoff=100",
          "-mv_variant_depth_cutoff=20",
          "-cons_depth_cutoff=80",
-         "-sliding_window_size=300", 
+         "-sliding_window_size=300",
          "-consensus_out=" + sample_prefix + "_consensus2_preNcut.fas",
-         "-mv_out=" + sample_prefix +"_consensus1.fas.mv",
+         "-mv_out=" + sample_prefix + "_consensus1.fas.mv",
          "-base_freq_out=" + sample_prefix + "_consensus1.fas.basefreqs.tsv"],
         check=True)
 
@@ -257,7 +257,7 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
     subprocess.run(
         ["perl", "-w", "-s",
          resource_prefix + "majvarcheck2.pl",
-         "-mvpath=" + sample_prefix +"_consensus2.fasta.mv",
+         "-mvpath=" + sample_prefix + "_consensus2.fasta.mv",
          "-basefreq=" + sample_prefix + "_consensus1.fas.basefreqs.tsv",
          "-fwdreads=" + sample_prefix + "_quasi_R1.fq",
          "-revreads=" + sample_prefix + "_quasi_R2.fq"],
