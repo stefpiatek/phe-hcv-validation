@@ -77,9 +77,15 @@ sample_numbers = [file.split("{}_".format(prefix))[1].split("_")[0]
 if args.consensus_gap:
     # Pretty messy conversion of bash script so tucked away in
     # another file
-    from scripts import consensus_gap
-    # might be worth refactoring this to run as a subprocess and
-    # pass the new sample prefix?
+    for sample_number in range(1,19):
+        subprocess.run([
+            "python3",
+            "{directory}/scripts/consensus_gap.py".format(
+                directory=directory),
+            "{prefix}_{sample_number}".format(
+                prefix=prefix,
+                sample_number=sample_number)],
+            check=True)
     exit()
 
 
