@@ -1,0 +1,82 @@
+---
+title: "Consensus Gap Filling"
+author: "Stef Piatek"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  html_document:
+    keep_md: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(Biostrings)  # bioconductor package
+library(readr)
+library(here)
+library(glue)
+library(purrr)
+library(dplyr)
+library(stringr)
+
+```
+
+## Read and align each sample
+
+- Takes true consensus from FASTA file and compares each of the final consensus from
+  the lastz steps: aligns them and then reports number of bases indel and number 
+  of base mismatches. 
+
+```{r data}
+
+compare_consensus <- function(gap_number, sample_prefix){
+  sample_fasta <- read_delim(file = here("data", "gap_files", 
+                                         glue("{sample_prefix}_{gap_number}"),
+                                         glue("{sample_prefix}_{gap_number}_consensus2.fasta")), 
+                          delim = "\t", col_names = "seq")%>%
+      filter(!startsWith(seq, ">"))
+  
+  sample_seq <- str_c(sample_fasta$seq, collapse="") %>%
+    str_to_upper()
+  
+  alignment <- pairwiseAlignment(pattern = true_fasta$seq, 
+                                 subject = sample_seq,
+                                 type = "global-local")
+  
+  pattern_alignment <- pattern(alignment)
+  indels <- indel(pattern_alignment)[[1]]
+  mismatches <- mismatch(pattern_alignment)[[1]]
+  
+  gap_differences <- tibble(
+    sample = sample_prefix,
+    gap_number = gap_number,
+    total_base_indels = sum(width(indels)),
+    start_pos_indels = min(start(indels)),
+    end_pos_indels = min(end(indels)),
+    total_base_mismatches = length(mismatches))
+  
+  return(gap_differences)
+}
+
+compare_consensuses <- function(sample_prefix){
+  true_fasta <<- read_delim(file = here("data", glue("{sample_prefix}_quasi_consensus.fas")), 
+                        delim = "\t", col_names = "seq") %>%
+    filter(!startsWith(seq, ">"))
+  true_seq <- str_c(true_fasta$seq, collapse="") 
+  
+  sample_differences <- map_df(.x=1:7, .f=compare_consensus, sample_prefix=sample_prefix)
+  
+  return(sample_differences)
+}
+
+
+all_samples <- paste0("170908_", 1:7)
+
+all_differences <- map_df(.x=all_samples, .f=compare_consensuses) %>%
+  filter(total_base_indels != 0 & total_base_mismatches != 0) %>%
+  group_by(sample, total_base_indels, start_pos_indels, end_pos_indels, total_base_mismatches) %>%
+  summarise(gap_numbers = glue("{min(gap_number)} - {max(gap_number)}"))
+
+knitr::kable(all_differences)
+
+```
+
+
