@@ -25,9 +25,10 @@ library(stringr)
   the lastz steps: aligns them and then reports number of bases indel and number 
   of base mismatches. 
 
-```{r data}
+```{r data,  warning=FALSE, message=FALSE}
 
-compare_consensus <- function(gap_number, sample_prefix){
+compare_consensus <- function(gap_number, sample_prefix, true_fasta){
+  # Compare an individual sample with gap to true consensus
   sample_fasta <- read_delim(file = here("data", "gap_files", 
                                          glue("{sample_prefix}_{gap_number}"),
                                          glue("{sample_prefix}_{gap_number}_consensus2.fasta")), 
@@ -50,29 +51,36 @@ compare_consensus <- function(gap_number, sample_prefix){
     gap_number = gap_number,
     total_base_indels = sum(width(indels)),
     start_pos_indels = min(start(indels)),
-    end_pos_indels = min(end(indels)),
-    total_base_mismatches = length(mismatches))
+    end_pos_indels = max(end(indels)),
+    mismatch_position = mismatches,
+    true_consensus_length = nchar(true_fasta$seq),
+    sample_consensus_length = nchar(sample_seq))
   
   return(gap_differences)
 }
 
-compare_consensuses <- function(sample_prefix){
-  true_fasta <<- read_delim(file = here("data", glue("{sample_prefix}_quasi_consensus.fas")), 
+run_compare_consensus <- function(sample_prefix){
+  # Compare all consensus gap runs for a sample
+  true_fasta <- read_delim(file = here("data", glue("{sample_prefix}_quasi_consensus.fas")), 
                         delim = "\t", col_names = "seq") %>%
     filter(!startsWith(seq, ">"))
-  true_seq <- str_c(true_fasta$seq, collapse="") 
-  
-  sample_differences <- map_df(.x=1:7, .f=compare_consensus, sample_prefix=sample_prefix)
+
+    
+  sample_differences <- map_df(.x=1:7, .f=compare_consensus, 
+                               sample_prefix=sample_prefix, 
+                               true_fasta=true_fasta)
   
   return(sample_differences)
 }
 
 
-all_samples <- paste0("170908_", 1:7)
+all_samples <- paste0("170908_", 1:18)
 
-all_differences <- map_df(.x=all_samples, .f=compare_consensuses) %>%
-  filter(total_base_indels != 0 & total_base_mismatches != 0) %>%
-  group_by(sample, total_base_indels, start_pos_indels, end_pos_indels, total_base_mismatches) %>%
+all_differences <- map_df(.x=all_samples, .f=run_compare_consensus) %>%
+  filter(total_base_indels != 0 & mismatch_position != 0 |
+           true_consensus_length != sample_consensus_length) %>%
+  group_by(sample, total_base_indels, start_pos_indels, end_pos_indels, 
+           mismatch_position, true_consensus_length, sample_consensus_length) %>%
   summarise(gap_numbers = glue("{min(gap_number)} - {max(gap_number)}"))
 
 knitr::kable(all_differences)
