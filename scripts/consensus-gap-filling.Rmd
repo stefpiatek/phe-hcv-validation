@@ -52,13 +52,13 @@ compare_consensus <- function(gap_number, sample_prefix, true_fasta){
     total_base_indels = sum(width(indels)),
     start_pos_indels = min(start(indels)),
     end_pos_indels = max(end(indels)),
-    mismatch_position = mismatches,
+    mismatch_positions = paste0(mismatches, collapse = ", "),
     true_consensus_length = nchar(true_fasta$seq),
     sample_consensus_length = nchar(sample_seq))
   
   return(gap_differences)
 }
-
+test <- c(12, 1234, 1231)
 run_compare_consensus <- function(sample_prefix){
   # Compare all consensus gap runs for a sample
   true_fasta <- read_delim(file = here("data", glue("{sample_prefix}_quasi_consensus.fas")), 
@@ -77,10 +77,10 @@ run_compare_consensus <- function(sample_prefix){
 all_samples <- paste0("170908_", 1:18)
 
 all_differences <- map_df(.x=all_samples, .f=run_compare_consensus) %>%
-  filter(total_base_indels != 0 | mismatch_position != 0 |
+  filter(total_base_indels != 0 | mismatch_positions != "" |
            true_consensus_length != sample_consensus_length) %>%
   group_by(sample, total_base_indels, start_pos_indels, end_pos_indels, 
-           mismatch_position, true_consensus_length, sample_consensus_length) %>%
+           mismatch_positions, true_consensus_length, sample_consensus_length) %>%
   summarise(gap_numbers = glue("{min(gap_number)} - {max(gap_number)}"))
 
 knitr::kable(all_differences)
