@@ -1,7 +1,18 @@
 import subprocess
+from argparse import ArgumentParser
 from os import getcwd, makedirs
 from os.path import dirname, exists
 
+
+parser = ArgumentParser(
+    description="Make a gap in consensus (i.e. 2 contigs), "
+                "then use pipeline steps to fill in the gap.")
+parser.add_argument(
+    'prefix', 
+    help="Prefix for original sample in YYMMDD_N, N is sample number")
+
+args = parser.parse_args()
+prefix = args.prefix
 
 def align_and_pileup(align_suffix, bam_suffix):
     """Carry out alignment steps to mpileup
@@ -65,16 +76,15 @@ def align_and_pileup(align_suffix, bam_suffix):
 
 
 directory = getcwd()
-prefix = "180212"
 
 gap_folder = dirname("{directory}/data/gap_files/".format(
         directory=directory))
 if not exists(gap_folder):
     makedirs(gap_folder)
 
-sample_in = "{directory}/data/170908_1_quasi.fas".format(
+sample_in = "{directory}/data/{prefix}_quasi.fas".format(
+    prefix=prefix,
     directory=directory)
-
 
 # iterate through
 for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
@@ -115,8 +125,9 @@ for sample_number, gap in zip([1, 2, 3, 4, 5, 6, 7],
             directory=directory),
         sample_prefix + "_quasi.fas",
         "-g {gap}".format(gap=gap),
-        "--gap-sample", "180212_{sample_number}".format(
-            sample_number=sample_number)],
+        "--gap-sample", "{prefix}_{sample_number}".format(
+            sample_number=sample_number,
+            prefix=prefix)],
         check=True)
 
     print("-- Running lastz for sample {sample_number}".format(
