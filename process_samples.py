@@ -77,7 +77,7 @@ sample_numbers = [file.split("{}_".format(prefix))[1].split("_")[0]
 if args.consensus_gap:
     # Pretty messy conversion of bash script so tucked away in
     # another file
-    for sample_number in range(1,19):
+    for sample_number in range(1, 19):
         subprocess.run([
             "python3",
             "{directory}/scripts/consensus_gap.py".format(

@@ -8,11 +8,12 @@ parser = ArgumentParser(
     description="Make a gap in consensus (i.e. 2 contigs), "
                 "then use pipeline steps to fill in the gap.")
 parser.add_argument(
-    'prefix', 
+    'prefix',
     help="Prefix for original sample in YYMMDD_N, N is sample number")
 
 args = parser.parse_args()
 prefix = args.prefix
+
 
 def align_and_pileup(align_suffix, bam_suffix):
     """Carry out alignment steps to mpileup
@@ -76,7 +77,6 @@ def align_and_pileup(align_suffix, bam_suffix):
 
 
 directory = getcwd()
-
 gap_folder = dirname("{directory}/data/gap_files/".format(
         directory=directory))
 if not exists(gap_folder):
