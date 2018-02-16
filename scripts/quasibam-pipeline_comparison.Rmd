@@ -25,6 +25,7 @@ library(tidyr)
 library(stringr)
 library(ggplot2)
 library(broom)
+library(purrr)
 
 # set up ggplot theme and palettes 
 theme_custom <- function (base_size = 12, base_family = "") {
@@ -99,15 +100,16 @@ pipeline_qb <- read_delim(file = here("data", glue("{samples[1]}_{pipeline}_quas
   compensate_for_indels(sample = samples[1], ref_table = consensus_qb)
 
 # add all other sets to the dataframe
-for(item in 2:length(samples)){
-  sample <- samples[item]
-  consensus_qb <- read_delim(file = here("data", glue("{sample}_quasi_frequency_matrix.txt")),
+
+load_data <- function(sample){
+  consensus_qb <<- read_delim(file = here("data",
+                                          glue("{sample}_quasi_frequency_matrix.txt")),
                            delim = "\t") %>%
     mutate(sample_name = sample) %>%
     filter_to_roi() %>%
     bind_rows(consensus_qb)
   
-  pipeline_qb <- read_delim(file = here("data", glue("{sample}_{pipeline}_quasibam.txt")),
+  pipeline_qb <<- read_delim(file = here("data", glue("{sample}_{pipeline}_quasibam.txt")),
                            delim = "\t") %>%
     select(-X22) %>%
     mutate(sample_name = sample) %>%
@@ -143,6 +145,8 @@ for(item in 2:length(samples)){
     filter(Pos >= 1) %>%
     bind_rows(pipeline_qb)
 }
+
+walk(.x=samples[2:length(samples)], .f=load_data)
 
 # change Positions to fit indel correction
 pipeline_qb <- pipeline_qb %>%

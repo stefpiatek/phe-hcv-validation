@@ -24,6 +24,8 @@ library(tidyr)
 library(stringr)
 library(ggplot2)
 library(broom)
+library(purrr)
+
 
 # set up ggplot theme and palettes 
 theme_custom <- function (base_size = 12, base_family = "") {
@@ -89,21 +91,24 @@ consensus_qb <- read_delim(file = here("data", glue("{samples[1]}_quasi_sorted.t
 
 
 # add all other sets to the dataframe
-for(item in 2:length(samples)){
-  sample <- samples[item]
-  consensus_fm <- read_delim(file = here("data", glue("{sample}_quasi_frequency_matrix.txt")),
-                           delim = "\t") %>%
+load_data <- function(sample){
+  consensus_fm <<- read_delim(file = here("data", 
+                                         glue("{sample}_quasi_frequency_matrix.txt")),
+                             delim = "\t") %>%
     mutate(sample_name = sample) %>%
     filter_to_roi() %>%
     bind_rows(consensus_fm)
   
-  consensus_qb <- read_delim(file = here("data", glue("{sample}_quasi_sorted.txt")),
+  consensus_qb <<- read_delim(file = here("data", glue("{sample}_quasi_sorted.txt")),
                            delim = "\t") %>%
     select(-X22) %>%
     mutate(sample_name = sample)%>%
     filter_to_roi() %>%
     bind_rows(consensus_qb)  
 }
+
+walk(.x=samples[2:length(samples)], .f=load_data)
+
 
 ```
 
