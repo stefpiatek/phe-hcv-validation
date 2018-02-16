@@ -76,14 +76,37 @@ run_compare_consensus <- function(sample_prefix){
 
 all_samples <- paste0("170908_", 1:18)
 
-all_differences <- map_df(.x=all_samples, .f=run_compare_consensus) %>%
-  filter(total_base_indels != 0 | mismatch_positions != "" |
-           true_consensus_length != sample_consensus_length) %>%
-  group_by(sample, total_base_indels, start_pos_indels, end_pos_indels, 
-           mismatch_positions, true_consensus_length, sample_consensus_length) %>%
-  summarise(gap_numbers = glue("{min(gap_number)} - {max(gap_number)}"))
+all_differences <- map_df(.x=all_samples, .f=run_compare_consensus) 
 
-knitr::kable(all_differences)
+all_differences %>%
+  filter(mismatch_positions != "") %>%
+  select(-true_consensus_length, -sample_consensus_length) %>%
+  group_by(sample,
+           mismatch_positions) %>%
+  summarise(gap_numbers = glue("{min(gap_number)} - {max(gap_number)}")) %>%
+  # view mismatches
+  knitr::kable()
+
+
+all_differences %>%
+  filter(total_base_indels != 0) %>%
+  group_by(sample, total_base_indels, start_pos_indels, end_pos_indels) %>%
+  summarise(gap_numbers = glue("{min(gap_number)} - {max(gap_number)}")) %>%
+  # view indels
+  knitr::kable()
+
+
+all_differences %>%
+  mutate(consensus_length_difference = 
+           sample_consensus_length - true_consensus_length ) %>%
+  filter(consensus_length_difference != 0) %>%
+  group_by(sample, total_base_indels, start_pos_indels, end_pos_indels, 
+           consensus_length_difference) %>%
+  summarise(gap_numbers = glue("{min(gap_number)} - {max(gap_number)}")) %>%
+  # view differences in length of consensus
+  knitr::kable()
+
+
 
 ```
 
