@@ -1,7 +1,9 @@
 import subprocess
 from argparse import ArgumentParser
 from glob import glob
-from os import getcwd
+from os import getcwd, makedirs
+from os.path import dirname, exists
+from shutil import rmtree
 
 """
 Simple script to run through each sample and take from FASTA to quasibam
@@ -14,6 +16,7 @@ module load samtools
 module load bwa
 module load smalt/0.7.6
 module load blast+/2.2.27
+module load vphaser
 """
 
 directory = getcwd()
@@ -34,6 +37,8 @@ parser.add_argument('-fm', '--fastq-middle', default="_",
 parser.add_argument('--consensus-gap', action='store_true',
                     help=("Carry out steps to test whether gaps in consensus "
                           "contigs are merged from pipeline steps"))
+parser.add_argument('--vphaser', action='store_true',
+                    help=("Run vphaser the sample set"))
 
 args = parser.parse_args()
 prefix = args.date_prefix
@@ -86,6 +91,31 @@ if args.consensus_gap:
                 prefix=prefix,
                 sample_number=sample_number)],
             check=True)
+    exit()
+
+if args.vphaser:
+    for sample_number in sample_numbers:
+        print("-- Running vphaser2 for sample {}".format(sample_number))
+        vphaser_dir = ("{directory}/data/vphaser/{prefix}_{sample_number}"
+                       ).format(
+                directory=directory,
+                prefix=prefix,
+                sample_number=sample_number)
+        if not exists(vphaser_dir):
+            makedirs(vphaser_dir)
+        try:
+            subprocess.run([
+                "vphaser",
+                "-i",
+                ("{directory}/data/{prefix}_{sample_number}_quasi_sorted.bam"
+                 ).format(directory=directory,
+                          prefix=prefix,
+                          sample_number=sample_number),
+                "-o", vphaser_dir],
+                check=True)
+        except subprocess.CalledProcessError:
+            print("Sample {} failed...\nMoving on...".format(sample_number))
+            rmtree(vphaser_dir)
     exit()
 
 
