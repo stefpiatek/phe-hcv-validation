@@ -12,7 +12,7 @@ Script to compare the frequency matrix from the FASTA pileup to quasibam from th
 
 Example usage from command line:
 
-    Rscript -e "rmarkdown::render('scripts/frequency-matrix_quasibam_comparison.Rmd', params = list(pipeline = 'vicuna_bwa', date_prefix = '170908') 'html_document', '../reports/170908_frequency-matrix_quasibam.html')"
+    Rscript -e "rmarkdown::render('scripts/frequency-matrix_comparison.Rmd', params = list(pipeline = 'vicuna_bwa', date_prefix = '170908') 'html_document', '../reports/170908_frequency-matrix_quasibam.html')"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(Biostrings)  # bioconductor package
@@ -45,6 +45,15 @@ theme_set(theme_custom(base_size=12))
 
 palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 
+# set up boolean to trigger vphaser chunk if files exist
+vphaser_samples <- list.files(here("data", "vphaser")) %>%
+  str_extract(glue("({params$date_prefix}_[0-9]+)")) %>%
+  na.omit() %>%
+  unique() 
+
+do_vphaser_comparison <- if_else(length(vphaser_samples) >= 1,
+                                 TRUE,
+                                 FALSE)
 
 ```
 
@@ -404,13 +413,15 @@ pass_filter %>%
   knitr::kable()
 
 ```
+
 ## Vphaser comparison
 
+- If vphaser analysis has been carried out, this chunk will run
 - Vphaser failed on some samples so only passing samples are compared
 - Vphaser assumes consensus sequence used is perfect and calculates the percent from 100% of the reference base and 0 % 
   for non-reference bases. 
 
-```{r vphaser, warning=FALSE, message=FALSE, echo=FALSE, results='asis'}
+```{r vphaser, warning=FALSE, message=FALSE, echo=FALSE, results='asis', eval=do_vphaser_comparison}
 
 ## Functions for loading vphaser data ----
 
@@ -464,11 +475,6 @@ load_all_vphaser <- function(vphaser_sample){
 
 
 ## Load samples that passed vphaser ----
-vphaser_samples <- list.files(here("data", "vphaser")) %>%
-  str_extract(glue("({date_prefix}_[0-9]+)")) %>%
-  na.omit() %>%
-  unique() 
-
 vphaser <- load_vphaser(vphaser_samples[1])
 
 walk(.x=vphaser_samples[2:length(vphaser_samples)], 
