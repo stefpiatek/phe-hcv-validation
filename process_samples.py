@@ -48,10 +48,10 @@ fastq_middle = args.fastq_middle
 
 if args.reports:
     cmd = ("Rscript -e \"rmarkdown::render("
-           "'scripts/frequency-matrix_quaisbam_comparison.Rmd', "
+           "'scripts/frequency-matrix_comparison.Rmd', "
            "params = list(date_prefix = '{prefix}'), "
            "'html_document', "
-           "'../reports/{prefix}_frequency-matrix_quasibam.html')\""
+           "'../reports/{prefix}_frequency-matrix_comparison.html')\""
            )
     subprocess.run(cmd.format(prefix=prefix),
                    shell=True, check=True)

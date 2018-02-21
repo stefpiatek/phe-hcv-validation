@@ -404,4 +404,131 @@ pass_filter %>%
   knitr::kable()
 
 ```
+## Vphaser comparison
+
+- Vphaser failed on some samples so only passing samples are compared
+- Vphaser assumes consensus sequence used is perfect and calculates the percent from 100% of the reference base and 0 % 
+  for non-reference bases. 
+
+```{r vphaser, warning=FALSE, message=FALSE, echo=FALSE, results='asis'}
+
+## Functions for loading vphaser data ----
+
+filter_by_position <- function(start, end, region, table_to_filter){
+  # filter table to given start and end position for ROI mapping
+   table_to_filter %>%
+    mutate(Pos = as.numeric(Pos)) %>%
+    filter(Pos >= start & Pos <= end) %>%
+    mutate(region_name = region) %>%
+    mutate(region_position = Pos + 1 - start) %>%
+    return()
+}
+
+
+load_vphaser <- function(vphaser_sample){
+  # loads individual vphaser sample and selects only roi positions
+  consensus_fasta <- read_delim(file = here("data", 
+                                            glue("{vphaser_sample}_quasi_consensus.fas")), 
+                        delim = "\t", col_names = "consensus") %>%
+    filter(!startsWith(consensus, ">")) 
+  consensus_seq <- str_c(consensus_fasta$consensus, collapse="")
+
+  roi_alignment <- pairwiseAlignment(pattern = roi$sequence, 
+                                     subject = consensus_seq,
+                                     type = "global-local")
+  # tibble to return
+   sample_vphaser <- read_delim(file = here("data", "vphaser", vphaser_sample,
+                                           "consensus.fdr.var.txt"),
+                                delim = "\t") %>%
+     mutate(sample_name = vphaser_sample) %>%
+     rename(Pos = `# Ref_Pos`,
+            RefN = Cons) %>%
+     filter(!str_detect(Pos, '#.*')) %>%
+     pmap_df(.l = list(start = start(subject(roi_alignment)),
+                       end = end(subject(roi_alignment)),
+                       region = roi$region_name),
+             table_to_filter = .,
+             .f = filter_by_position) %>%
+     mutate(sample_name = if_else(str_detect(sample_name, "([0-9]{6}_[0-9]{1}$)"),
+                               str_replace(sample_name, "_", "_0"),
+                               sample_name))
+     
+     return(sample_vphaser)
+}
+
+load_all_vphaser <- function(vphaser_sample){
+  # loads and merges all vphaser sampels
+  vphaser <<- load_vphaser(vphaser_sample) %>%
+    bind_rows(vphaser)
+}
+
+
+## Load samples that passed vphaser ----
+vphaser_samples <- list.files(here("data", "vphaser")) %>%
+  str_extract(glue("({date_prefix}_[0-9]+)")) %>%
+  na.omit() %>%
+  unique() 
+
+vphaser <- load_vphaser(vphaser_samples[1])
+
+walk(.x=vphaser_samples[2:length(vphaser_samples)], 
+     .f=load_all_vphaser)
+
+
+## comapre vphaser and quasibam ----
+qb_vphaser <- vphaser %>%
+  inner_join(consensus_diff, 
+             by = c("region_position" = "Pos", "Var" = "base", 
+                    "region_name", "sample_name", "RefN"),
+             suffix = c("_vphaser", "_quasibam")) %>%
+  # calculate actual value difference from frequency matrix values
+  filter(source == "consensus") %>%
+  mutate(fm_vphaser_pc_diff = abs(Var_perc - value)) %>%
+  # now look at the relative difference from quasibam and vphaser
+  mutate(qb_vphaser_pc_diff = pc_diff - fm_vphaser_pc_diff) %>%
+  mutate(greater_pc_diff = if_else(fm_vphaser_pc_diff > pc_diff,
+                                   "Vphaser greater",
+                                   "Quasibam greater"))
+
+
+
+
+ggplot(qb_vphaser, aes(x = abs(qb_vphaser_pc_diff), fill = greater_pc_diff)) +
+  geom_histogram(bins = 40) +
+  scale_x_log10(
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  scale_fill_manual(values = palette_5) +
+  annotation_logticks(sides = "b") +
+  labs(x = "Percent difference by base",
+       y = "Count",
+       fill = "Greater difference\nto true value",
+       title = "Absolute difference between quasibam and vphaser") 
+
+
+## Number of positions different using thresholds----
+
+vphaser_position_threshold <- function(diff_threshold, pval_threshold){
+  vphaser %>%
+    group_by(Pos) %>%
+    filter(Var_perc == max(Var_perc)) %>%
+    filter(Var_perc > diff_threshold) %>%
+    filter(Strd_bias_pval < pval_threshold) %>%
+    group_by(region_name) %>%
+    summarise(`Total number` = n()) %>%
+    knitr::kable(caption = glue(
+      "Vphaser differences > {diff_threshold} % with P < {pval_threshold}")
+      ) %>%
+    print()
+}
+
+walk(.x = c(1, 5, 10),
+     .f = vphaser_position_threshold,
+     pval_threshold = 1)
+
+walk(.x = c(1, 5, 10),
+     .f = vphaser_position_threshold,
+     pval_threshold = 0.05)  
+
+```
 
