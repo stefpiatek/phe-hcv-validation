@@ -122,7 +122,7 @@ if args.vphaser:
 # run all data processing
 for sample_number in sample_numbers:
     # create consensus and frequency matrix
-    path_prefix = "{directory}/data/{prefix}_{sample_number}".format(
+    sample_prefix = "{directory}/data/{prefix}_{sample_number}".format(
         directory=directory,
         prefix=prefix,
         sample_number=sample_number)
@@ -134,13 +134,13 @@ for sample_number in sample_numbers:
         "python3",
         "{directory}/scripts/FASTA_consensus.py".format(
             directory=directory),
-        path_prefix + "_quasi.fas"],
+        sample_prefix + "_quasi.fas"],
         check=True)
 
     print("-- Running bwa index for sample {sample_number}".format(
         sample_number=sample_number))
     subprocess.run(["bwa", "index",
-                    path_prefix + "_quasi_consensus.fas"],
+                    sample_prefix + "_quasi_consensus.fas"],
                    check=True)
 
     if args.remove_human:
@@ -151,28 +151,28 @@ for sample_number in sample_numbers:
         # in awk command,  double { to avoid string formatting
         cmd = ("smalt map -x -y 0.5 -i 500 -n 8 "
                "{directory}/pipeline-resources/hg38/hg38_hcv_k15_s3 "
-               "{path_prefix}_R1.fq {path_prefix}_R2.fq "
+               "{sample_prefix}_R1.fq {sample_prefix}_R2.fq "
                "| awk '{{if ($3 !~ /^chr/ && $7 !~ /^chr/) print $0}}' "
-               "> {path_prefix}_filtered.sam")
+               "> {sample_prefix}_filtered.sam")
         subprocess.run(
             cmd.format(
                 directory=directory,
-                path_prefix=path_prefix),
+                sample_prefix=sample_prefix),
             shell=True, check=True)
 
         print("-- convert filtered sam to fastqs for # {sample_number}".format(
             sample_number=sample_number))
-        cmd = ("samtools view -bShf 64 {path_prefix}_filtered.sam"
+        cmd = ("samtools view -bShf 64 {sample_prefix}_filtered.sam"
                "| samtools bam2fq - > "
-               "{path_prefix}{fastq_middle}R1_filtered.fq")
+               "{sample_prefix}{fastq_middle}R1_filtered.fq")
         subprocess.run(
-            cmd.format(path_prefix=path_prefix, fastq_middle=fastq_middle),
+            cmd.format(sample_prefix=sample_prefix, fastq_middle=fastq_middle),
             shell=True, check=True)
-        cmd = ("samtools view -bShf 128 {path_prefix}_filtered.sam"
+        cmd = ("samtools view -bShf 128 {sample_prefix}_filtered.sam"
                "| samtools bam2fq - > "
-               "{path_prefix}{fastq_middle}R2_filtered.fq")
+               "{sample_prefix}{fastq_middle}R2_filtered.fq")
         subprocess.run(
-            cmd.format(path_prefix=path_prefix, fastq_middle=fastq_middle),
+            cmd.format(sample_prefix=sample_prefix, fastq_middle=fastq_middle),
             shell=True, check=True)
         fastq_suffix = "_filtered.fq"
     else:
@@ -181,35 +181,35 @@ for sample_number in sample_numbers:
     print("-- BWA mem for sample {sample_number}".format(
         sample_number=sample_number))
 
-    output_filename = path_prefix + "_quasi.sam"
+    output_filename = sample_prefix + "_quasi.sam"
     with open(output_filename, "w") as output_file:
         subprocess.run(["bwa", "mem",
-                        path_prefix + "_quasi_consensus.fas",
-                        path_prefix + fastq_middle + "R1" + fastq_suffix,
-                        path_prefix + fastq_middle + "R2" + fastq_suffix],
+                        sample_prefix + "_quasi_consensus.fas",
+                        sample_prefix + fastq_middle + "R1" + fastq_suffix,
+                        sample_prefix + fastq_middle + "R2" + fastq_suffix],
                        stdout=output_file,
                        check=True)
 
-    output_filename = path_prefix + "_quasi.bam"
+    output_filename = sample_prefix + "_quasi.bam"
     with open(output_filename, "w") as output_file:
         print("-- Converting sam to bam for sample {sample_number}".format(
             sample_number=sample_number))
         subprocess.run(["samtools", "view", "-Sb",
-                        path_prefix + "_quasi.sam"],
+                        sample_prefix + "_quasi.sam"],
                        stdout=output_file,
                        check=True)
 
     print("-- Sorting bam for sample {sample_number}".format(
         sample_number=sample_number))
     subprocess.run(["samtools", "sort", "-f",
-                    path_prefix + "_quasi.bam",
-                    path_prefix + "_quasi_sorted.bam"],
+                    sample_prefix + "_quasi.bam",
+                    sample_prefix + "_quasi_sorted.bam"],
                    check=True)
 
     print("-- Indexing bam for sample {sample_number}".format(
         sample_number=sample_number))
     subprocess.run(["samtools", "index",
-                    path_prefix + "_quasi_sorted.bam"],
+                    sample_prefix + "_quasi_sorted.bam"],
                    check=True)
 
     print("-- Running quasi_bam for sample {sample_number}".format(
