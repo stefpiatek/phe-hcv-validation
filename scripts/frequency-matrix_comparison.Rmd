@@ -35,10 +35,10 @@ theme_custom <- function (base_size = 12, base_family = "") {
       axis.line.y = element_line(color = "black"),
       panel.border = element_blank(),
       legend.key = element_rect(fill = NA, colour = NA),
-      panel.grid.minor.y = element_line(colour="white"),
+      panel.grid.minor.y = element_line(colour = "white"),
       panel.grid.major = element_line(colour = "white"),
-      axis.title.x=element_text(vjust=-1.5),
-      plot.margin= unit(c(0.5, 0, 0.5, 0), "cm")# top right bottom left
+      axis.title.x = element_text(vjust = -1.5),
+      plot.margin = unit(c(0.5, 0, 0.5, 0), "cm")# top right bottom left
     )
 }
 theme_set(theme_custom(base_size=12))
@@ -72,7 +72,6 @@ do_vphaser_comparison <- if_else(length(vphaser_samples) >= 1,
 # Load helper scripts and hcv reference information
 source(here("scripts", "helper_functions.R"))
 
-
 ## Load up samples and filter them to roi ----
 # get list of samples
 date_prefix <- params$date_prefix
@@ -90,14 +89,11 @@ consensus_fm <- read_delim(file = here("data", glue("{samples[1]}_quasi_frequenc
   mutate(sample_name = samples[1]) %>%
   filter_to_roi()
 
-
-
 consensus_qb <- read_delim(file = here("data", glue("{samples[1]}_quasi_sorted.txt")),
                            delim = "\t") %>%
   select(-X22) %>%  # extra column added in import
   mutate(sample_name = samples[1])%>%
   filter_to_roi()
-
 
 # add all other sets to the dataframe
 load_data <- function(sample){
@@ -118,7 +114,6 @@ load_data <- function(sample){
 
 walk(.x=samples[2:length(samples)], .f=load_data)
 
-
 ```
 
 ## Discordant basecalls
@@ -137,9 +132,7 @@ consensus_qb %>%
   full_join(ref_length_consensus, by = c("sample_name", "region_name"), suffix = c("_pipeline", "_consensus")) %>%
   filter(ref_length_consensus != ref_length_pipeline)
 
-
 ### Compare data where basecalls are discordant ----
-
 discordant_basecalls <- consensus_qb %>%
   group_by(sample_name, region_name) %>%
   filter(RefN != Cons) %>%
@@ -149,7 +142,6 @@ discordant_basecalls <- consensus_qb %>%
   filter(!(Cons == "W" & RefN %in% c("A", "T"))) %>%
   filter(!(Cons == "K" & RefN %in% c("G", "T"))) %>%
   filter(!(Cons == "M" & RefN %in% c("A", "C")))
-  
 
 discordant_basecalls %>%
   select(Pos:Gap, Cons, sample_name, region_name) %>%
@@ -192,8 +184,6 @@ tmp_consensus_diff <- consensus_fm %>%
   mutate(sample_name = if_else(str_detect(sample_name, "([0-9]{6}_[0-9]{1}$)"),
                                str_replace(sample_name, "_", "_0"),
                                sample_name)) 
-
-
 
 # reshape quality data into long format and merge back into consensus_diff
 quality_values <- tmp_consensus_diff %>%
@@ -248,7 +238,6 @@ consensus_qb %>%
        title = "Percent of samples with depth above 100",
        colour = "Depth")
 
-
 # double check no missed rows
 consensus_qb %>%
   group_by(Pos, region_name) %>%
@@ -269,7 +258,6 @@ consensus_diff %>%
   labs(x = "Frequency difference",
        y = "Count",
        title = "Differences compared to consensus")
-
 
 ## Distribution of frequency differences per sample ----
 consensus_diff %>%
@@ -345,7 +333,6 @@ consensus_diff %>%
        title = "Read depth of frequency differences >= 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
 
-
 ## Per sample distribution by nucleotide position
 consensus_diff %>%
   mutate(greater_1_pc = if_else(pc_diff >= 1, 1, 0)) %>% 
@@ -369,15 +356,13 @@ consensus_diff %>%
        colour = "Percent bases\nabove 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
 
-
-
 ```
 
 ## Number of positions comparison
 
 - for 171009, samples 10, 11 and 12 have been filtered out
 
-```{r filtered_comparison, echo=FALSE}
+```{r filtered_comparison, echo=FALSE, results='asis'}
 
 
 total_bases <- consensus_qb %>%
@@ -389,19 +374,9 @@ total_bases_filtered <- consensus_qb %>%
   group_by(region_name, sample_name) %>%
   summarise(max_length = max(Pos) * 4)  # as 4 bases
 
-
-analyse_threshold(1, "consensus")
-position_diff_export %>% knitr::kable()
-conf_int_export %>% knitr::kable()
-
-analyse_threshold(5, "consensus")
-position_diff_export %>% knitr::kable()
-conf_int_export %>% knitr::kable()
-
-analyse_threshold(10, "consensus")
-position_diff_export %>% knitr::kable()
-conf_int_export %>% knitr::kable()
-
+walk(.x = c(1, 5, 10),
+     .f = analyse_threshold,
+     source_name = "consensus")
 
 pass_filter %>%
   filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
@@ -410,7 +385,7 @@ pass_filter %>%
   select(Pos:region_name, Cons, depth:pc_diff, -source, base) %>%
   ungroup() %>%
   arrange(Pos, sample_name, region_name) %>%
-  knitr::kable()
+  knitr::kable(caption = "All bases with greater than 10% difference")
 
 ```
 
@@ -434,7 +409,6 @@ filter_by_position <- function(start, end, region, table_to_filter){
     mutate(region_position = Pos + 1 - start) %>%
     return()
 }
-
 
 load_vphaser <- function(vphaser_sample){
   # loads individual vphaser sample and selects only roi positions
@@ -473,13 +447,11 @@ load_all_vphaser <- function(vphaser_sample){
     bind_rows(vphaser)
 }
 
-
 ## Load samples that passed vphaser ----
 vphaser <- load_vphaser(vphaser_samples[1])
 
 walk(.x=vphaser_samples[2:length(vphaser_samples)], 
      .f=load_all_vphaser)
-
 
 ## comapre vphaser and quasibam ----
 qb_vphaser <- vphaser %>%
@@ -496,9 +468,6 @@ qb_vphaser <- vphaser %>%
                                    "Vphaser greater",
                                    "Quasibam greater"))
 
-
-
-
 ggplot(qb_vphaser, aes(x = abs(qb_vphaser_pc_diff), fill = greater_pc_diff)) +
   geom_histogram(bins = 40) +
   scale_x_log10(
@@ -511,9 +480,7 @@ ggplot(qb_vphaser, aes(x = abs(qb_vphaser_pc_diff), fill = greater_pc_diff)) +
        fill = "Greater difference\nto true value",
        title = "Absolute difference between quasibam and vphaser") 
 
-
 ## Number of positions different using thresholds----
-
 vphaser_position_threshold <- function(diff_threshold, pval_threshold){
   vphaser %>%
     group_by(Pos) %>%

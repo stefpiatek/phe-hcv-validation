@@ -126,20 +126,23 @@ analyse_threshold <- function(quality_threshold = 1, source_name = "consensus"){
     filter(quality_value > 1) %>%
     filter(source == source_name) 
   
-  print(glue("Positions with >= {quality_threshold}% difference"))
   all_positions <- pass_filter %>%
     group_by(Pos, region_name) %>%
     filter(Pos == max(Pos)) %>%
     group_by(region_name) %>%
     summarise(diff_positions = n()) 
   
-  position_diff_export <<- pass_filter %>%
+  pass_filter %>%
     filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
     group_by(Pos, region_name) %>%
     filter(Pos == max(Pos)) %>%
     group_by(region_name) %>%
     summarise(filtered_diff_positions = n()) %>%
-    full_join(all_positions, by = "region_name") 
+    full_join(all_positions, by = "region_name") %>%
+    knitr::kable(caption = glue(
+      "Positions with >= {quality_threshold}% difference"
+      )) %>%
+    print()
   
   
   bases_pass <- pass_filter %>%
@@ -159,11 +162,16 @@ analyse_threshold <- function(quality_threshold = 1, source_name = "consensus"){
     group_by(region_name) %>%
     summarise(bases = n())
   
-  conf_int_export <<- tidy(prop.test(sum(bases_pass_filtered$bases), 
-                                     sum(total_bases_filtered$max_length))) %>%
+
+  tidy(prop.test(sum(bases_pass_filtered$bases), 
+                 sum(total_bases_filtered$max_length))) %>%
     select(conf.low:conf.high) %>%
     mutate(filtering = "remove 171009_10:12") %>%
     select(filtering, conf.low:conf.high) %>%
-    bind_rows(conf_int) 
+    bind_rows(conf_int) %>%
+    knitr::kable(caption = glue(
+      "Bases with >= {quality_threshold}% difference"
+    )) %>%
+    print()
 }
 

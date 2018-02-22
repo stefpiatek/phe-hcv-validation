@@ -45,7 +45,6 @@ theme_set(theme_custom())
 
 palette_5 <- c("#FFA347","#142952", "#B80000","#97F297", "#000000")
 
-
 has_true_positives <- params$date_prefix == "171009"
 
 
@@ -135,7 +134,7 @@ load_data <- function(sample){
     mutate(RefN = if_else(sample_name == "170908_15" & pipeline == "iva_smalt",
                           lag(RefN, n = 1),
                           RefN)) %>%   
-    # 171009: 
+    # 171009
     mutate(Pos = if_else(sample_name == "171009_11",
                          Pos -3,
                          as.double(Pos))) %>%
@@ -169,8 +168,6 @@ if(nrow(indel_tbl) != 0){
     summarise(total_bases = n(),
               positions = glue("{min(Pos)} - {max(Pos)}"))
 }
-
-
 
 ### Compare size of reference genome between consensus and pipeline
 ref_length_consensus <- consensus_qb %>%
@@ -213,8 +210,6 @@ discordant_basecalls %>%
 
 
 ```{r merge_quasibams}
-
-
 tmp_consensus_diff <- consensus_qb %>%
   full_join(pipeline_qb, by=c("Pos", "sample_name", "region_name"), 
             suffix=c("_consensus", "_pipeline")) %>%
@@ -253,7 +248,6 @@ quality_values <- tmp_consensus_diff %>%
   group_by(Pos, base, sample_name, region_name) %>%
   dplyr::slice(1) %>%
   ungroup()
-
 
 consensus_diff <- tmp_consensus_diff %>%
   select(-starts_with("q")) %>%
@@ -316,8 +310,6 @@ consensus_diff %>%
   labs(x = "Frequency difference",
        y = "Count",
        title = "Differences compared to consensus")
-# 
-
 
 ## Distribution of frequency differences per sample ----
 consensus_diff %>%
@@ -347,7 +339,6 @@ consensus_diff %>%
        title = "Number of differences >1% by position") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
 
-
 ## proportion of samples with base difference at position ----
 consensus_diff %>%
   filter(consensus_greater != "pipeline_sample") %>%
@@ -366,7 +357,6 @@ ggplot(aes(x = max_pc_diff, y = gt_1_pc, colour = base, alpha = 0.2)) +
        y = "Percent of samples",
        title = "Percent of samples with >1% difference in base frequency")
 
-
 ## Distribution of differences greater than 1% by reference position ----
 consensus_diff %>%
   # remove samples with frequencies within 1% of eachother 
@@ -380,7 +370,6 @@ consensus_diff %>%
        y = "Count",
        title = "Differences by position, over 1%") +
   theme(axis.text.x  = element_text(angle=45, vjust=0.5))
-
 
 ## Read depth of reads with frequency differences greater than 1%
 consensus_diff %>%
@@ -424,7 +413,7 @@ consensus_diff %>%
 
 - for 171009, samples 10, 11 and 12 have been filtered out
 
-```{r filtered_comparison, echo=FALSE}
+```{r filtered_comparison, echo=FALSE, results='asis'}
 
 # total number of bases
 total_bases <- consensus_qb %>%
@@ -437,17 +426,9 @@ total_bases_filtered <- consensus_qb %>%
   group_by(region_name, sample_name) %>%
   summarise(max_length = max(Pos) * 4)  # as 4 bases
 
-analyse_threshold(1, "pipeline")
-position_diff_export %>% knitr::kable()
-conf_int_export %>% knitr::kable()
-
-analyse_threshold(5, "pipeline")
-position_diff_export %>% knitr::kable()
-conf_int_export %>% knitr::kable()
-
-analyse_threshold(10, "pipeline")
-position_diff_export %>% knitr::kable()
-conf_int_export %>% knitr::kable()
+walk(.x = c(1, 5, 10),
+     .f = analyse_threshold,
+     source_name = "pipeline")
 
 pass_filter %>%
   filter(!sample_name %in% c('171009_10', '171009_11', '171009_12')) %>%
@@ -456,15 +437,10 @@ pass_filter %>%
   select(Pos:region_name, Cons, depth:pc_diff, -source, base) %>%
   ungroup() %>%
   arrange(Pos, sample_name, region_name) %>%
-  knitr::kable()
-
-
-
-
+  knitr::kable(caption = "All bases with greater than 10% difference")
 
 ```
 ```{r true_variants, eval=has_true_positives}
-
 find_aa_difference <- function(row_number, sample){
 # gets percent amino acid differences for true positives
   true_list <- as.list(true_positives)
@@ -519,8 +495,7 @@ aa_difference %>%
   group_by(sample_name) %>%
   summarise(avg_pc_diff = sum(abs(pc_diff)) / n(),
             total_pc_diff = sum(pc_diff)) %>%
-  knitr::kable()
-
+  knitr::kable(caption = "Per sample difference in true positives")
 
 # mean difference
 mean(abs(aa_difference$pc_diff))
