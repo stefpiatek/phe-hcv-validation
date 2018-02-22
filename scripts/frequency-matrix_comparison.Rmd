@@ -469,7 +469,7 @@ qb_vphaser <- vphaser %>%
                                    "Quasibam greater"))
 
 ggplot(qb_vphaser, aes(x = abs(qb_vphaser_pc_diff), fill = greater_pc_diff)) +
-  geom_histogram(bins = 40) +
+  geom_histogram(position="identity", bins = 40, alpha=0.6) +
   scale_x_log10(
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) +
