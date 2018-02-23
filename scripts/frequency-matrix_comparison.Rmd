@@ -6,7 +6,7 @@ output:
   html_document:
     keep_md: TRUE
 params:
-  date_prefix: "170908"
+  date_prefix: "171009"
 ---
 Script to compare the frequency matrix from the FASTA pileup to quasibam from the same consensus
 
@@ -513,13 +513,25 @@ walk(.x = c(1, 5, 10),
 ### Positions without variation across all samples
 
 - Used minimum value of 1% to count as true difference
+    - Filtered out samples with second hcv species contamination
 - Smoothed line is shown with 95% confidence interals in grey
 - Behind this the data range is shown in colour
 
 ```{r no_variation, echo=FALSE, eval=do_vphaser_comparison}
 
+# filter out second hcv species contamination
+if(date_prefix == "171009"){
+  consensus_diff_filtered <- consensus_diff %>%
+    filter(!sample_name %in% c("171009_10", "171009_11", "171009_12"))
+  vphaser_filtered <- vphaser %>%
+    filter(!sample_name %in% c("171009_10", "171009_11", "171009_12")) %>%
+    mutate(sample_name = fct_drop(sample_name))
+} else{
+  consensus_diff_filtered <- consensus_diff
+  vphaser_filtered <- vphaser
+}
 
-max_consensus_diff <- consensus_diff %>%
+max_consensus_diff <- consensus_diff_filtered %>%
   group_by(sample_name, Pos, region_name) %>%
   filter(source == 'consensus') %>%
   filter(pc_diff == max(pc_diff)) %>%
@@ -533,17 +545,17 @@ max_consensus_diff <- consensus_diff %>%
   mutate(percent_quasibam_absent = 100 * sum(quasibam_no_difference) / n()) %>%
   select(-quasibam_no_difference)
 
-full_qb_vphaser <- vphaser %>%
+full_qb_vphaser <- vphaser_filtered %>%
   filter(Var_perc >= 1) %>%
   full_join(max_consensus_diff, 
              by = c("region_position" = "Pos",  
                     "region_name", "sample_name"),
              suffix = c("_vphaser", "_quasibam")) %>%
   filter(is.na(Strd_bias_pval)) %>%
-  filter(sample_name %in% unique(vphaser$sample_name)) %>%
+  filter(sample_name %in% unique(vphaser_filtered$sample_name)) %>%
   select(sample_name:percent_quasibam_absent) %>%
   group_by(region_position, region_name) %>%
-  mutate(percent_vphaser_absent = 100 * n() / length(vphaser_samples)) %>%
+  mutate(percent_vphaser_absent = 100 * n() / length(unique(vphaser_filtered$sample_name))) %>%
   gather(key = "variation_caller", value = "percent_absent", 
          ends_with("absent"), factor_key = TRUE) %>%
   mutate(variation_caller = fct_recode(variation_caller, 
