@@ -25,6 +25,7 @@ library(stringr)
 library(ggplot2)
 library(broom)
 library(purrr)
+library(forcats)
 
 
 # set up ggplot theme and palettes 
@@ -348,7 +349,7 @@ consensus_diff %>%
   geom_point(stat = "identity", aes(x = Pos, y = pc_diff, alpha = 0.2, 
                                     colour = gt_1_pc)) +
   scale_y_log10() +
-  facet_wrap( ~ sample_name) + 
+  facet_wrap( ~ sample_name, scales = "free_x") + 
   scale_color_continuous(low = palette_5[1] , high = palette_5[5]) +
   guides(alpha = FALSE) +
   labs(x = "Nucleotide Position",
@@ -453,7 +454,7 @@ vphaser <- load_vphaser(vphaser_samples[1])
 walk(.x=vphaser_samples[2:length(vphaser_samples)], 
      .f=load_all_vphaser)
 
-## comapre vphaser and quasibam ----
+## compare vphaser and quasibam ----
 qb_vphaser <- vphaser %>%
   inner_join(consensus_diff, 
              by = c("region_position" = "Pos", "Var" = "base", 
@@ -482,18 +483,23 @@ ggplot(qb_vphaser, aes(x = abs(qb_vphaser_pc_diff), fill = greater_pc_diff)) +
 
 ## Number of positions different using thresholds----
 vphaser_position_threshold <- function(diff_threshold, pval_threshold){
-  vphaser %>%
+  output <- vphaser %>%
     group_by(Pos) %>%
     filter(Var_perc == max(Var_perc)) %>%
     filter(Var_perc > diff_threshold) %>%
     filter(Strd_bias_pval < pval_threshold) %>%
     group_by(region_name) %>%
-    summarise(`Total number` = n()) %>%
-    knitr::kable(caption = glue(
-      "Vphaser differences > {diff_threshold} % with P < {pval_threshold}")
+    summarise(`Total number` = n())
+  
+  if(length(output$region_name > 0)){
+    output %>%
+      knitr::kable(caption = glue(
+        "Vphaser differences > {diff_threshold} % with P < {pval_threshold}")
       ) %>%
     print()
+  }
 }
+
 
 walk(.x = c(1, 5, 10),
      .f = vphaser_position_threshold,
@@ -502,6 +508,57 @@ walk(.x = c(1, 5, 10),
 walk(.x = c(1, 5, 10),
      .f = vphaser_position_threshold,
      pval_threshold = 0.05)  
+```
 
+### Positions without variation across all samples
+
+- Used minimum value of 1% to count as true difference
+- Smoothed line is shown with 95% confidence interals in grey
+- Behind this the data range is shown in colour
+
+```{r no_variation, echo=FALSE, eval=do_vphaser_comparison}
+
+
+max_consensus_diff <- consensus_diff %>%
+  group_by(sample_name, Pos, region_name) %>%
+  filter(source == 'consensus') %>%
+  filter(pc_diff == max(pc_diff)) %>%
+  # because bases with no difference will be maximum
+  # get first in group to only have one base
+  dplyr::slice(1) %>%
+  mutate(quasibam_no_difference = if_else(pc_diff <= 1,
+                                          1,
+                                          0)) %>%
+  group_by(region_name, Pos) %>%
+  mutate(percent_quasibam_absent = 100 * sum(quasibam_no_difference) / n()) %>%
+  select(-quasibam_no_difference)
+
+full_qb_vphaser <- vphaser %>%
+  filter(Var_perc >= 1) %>%
+  full_join(max_consensus_diff, 
+             by = c("region_position" = "Pos",  
+                    "region_name", "sample_name"),
+             suffix = c("_vphaser", "_quasibam")) %>%
+  filter(is.na(Strd_bias_pval)) %>%
+  filter(sample_name %in% unique(vphaser$sample_name)) %>%
+  select(sample_name:percent_quasibam_absent) %>%
+  group_by(region_position, region_name) %>%
+  mutate(percent_vphaser_absent = 100 * n() / length(vphaser_samples)) %>%
+  gather(key = "variation_caller", value = "percent_absent", 
+         ends_with("absent"), factor_key = TRUE) %>%
+  mutate(variation_caller = fct_recode(variation_caller, 
+                                       Quasibam = "percent_quasibam_absent",
+                                       Vphaser = "percent_vphaser_absent"))
+  
+ggplot(full_qb_vphaser, aes(x = region_position, y = percent_absent, 
+                            colour = variation_caller)) +  
+  geom_line(alpha = 0.2) +
+  geom_smooth() + 
+  facet_wrap(~ region_name, scales = "free_x") +
+  labs(x = "Position (nt)",
+       y = "Percent of samples with < 1% variation",
+       colour = "Variation caller",
+       title = "Positions with less than 1% variation") +
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
 ```
 
