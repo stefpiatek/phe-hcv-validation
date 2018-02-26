@@ -39,6 +39,8 @@ parser.add_argument('--consensus-gap', action='store_true',
                           "contigs are merged from pipeline steps"))
 parser.add_argument('--vphaser', action='store_true',
                     help=("Run vphaser the sample set"))
+parser.add_argument('--pipeline', default=None,
+                    help=("specific pipeline to be run, e.g. 'vicuna_bwa'"))
 
 args = parser.parse_args()
 prefix = args.date_prefix
@@ -55,8 +57,13 @@ if args.reports:
            )
     subprocess.run(cmd.format(prefix=prefix),
                    shell=True, check=True)
-    for pipeline in ["vicuna_bwa", "vicuna_smalt", "iva_bwa", "iva_smalt"]:
 
+    if args.pipeline:
+        pipelines = [args.pipeline]
+    else:
+        pipelines = ["vicuna_bwa", "vicuna_smalt", "iva_bwa", "iva_smalt"]
+
+    for pipeline in pipelines:
         cmd = ("Rscript -e \"rmarkdown::render("
                "'scripts/quasibam-pipeline_comparison.Rmd', "
                "params = list(pipeline = '{pipeline}', "

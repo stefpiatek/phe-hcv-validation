@@ -2,7 +2,9 @@
 .*
 !.gitignore
 !.gitkeep
-data/*
-.Rproj.user
+*.pyc
 *.html
-reports*
+.Rproj.user
+data/*
+!data/reference
+reports/*
