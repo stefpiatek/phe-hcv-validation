@@ -19,11 +19,12 @@ FASTAs were made to simulate samples with different compositions. These have bee
 ## Requirements
 
 - Python 3.5+ required for scripts, have not tested on anything lower. Requirements for pip in pip_requirements.txt
-- R 3.2+
+- Rmd reports, issues with proxy that didn't have time to sort so can't use Bioconductor BiocLite or packrat/anaconda for package management. Follow steps in [scripts/R-setup.R](scripts/R-setup.R)
+    - R 3.4+
     - Ideally I'd use packrat or an anaconda package, but issues with proxy
     - Tidyverse and Biostrings (Biostrings is a bioconductor package)
     - Rstudio if doing single Rmarkdown reports
-- Pandoc for knitting Rmarkdown
+    - Pandoc for knitting Rmarkdown
 - For consensus gap, the following in `pipeline-resources/`
     - `hcv.fasta` and associated files
     - `lastz-distrib/bin/lastz` and associated files
