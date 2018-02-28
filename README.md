@@ -73,7 +73,10 @@ FASTAs were made to simulate samples with different compositions. These have bee
 #### Analysing processed data: Rmarkdown reports
 
 - **Requires** the following in the `data` folder:
-    - Output from samples to be processed by default or remove-human settings    
+    - Output from samples to be processed by default or remove-human settings. e.g:
+        - `171009_1_quasi_sorted.txt`, `1 71009_1_quasi_frequency_matrix.txt` for frequency matrix comparison, with all samples to be processed
+        - `171009_1_{pipeline_name}_quasibam.txt` for each pipeline
+        - Easiest just to copy all of the *.txt files in results
     - Quasibam .txt output from pipelines 
     e.g. `171009_12_vicuna_bwa_quasibam.txt`. This format is required.
     - If running another batch of **171009** samples, change the 
