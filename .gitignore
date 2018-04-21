@@ -2,6 +2,7 @@
 .*
 !.gitignore
 !.gitkeep
+!.gitattributes
 *.pyc
 *.html
 .Rproj.user
